@@ -37,6 +37,16 @@ DURACION_RONDA = 4200  # ms para imitar
 DURACION_RESULTADO = 2600
 UMBRAL_BUENO = 0.50  # a partir de aqui consideramos que si la hizo
 
+# ---- Robustez con publico alrededor ----
+# En una feria hay gente caminando detras todo el tiempo. Pedimos mas caras
+# de las que jugamos para poder descartar a los que pasan, y emparejamos
+# cada jugador con la cara mas cercana a donde estaba en vez de reordenar
+# por X: si no, una sola cara extra recorre a todos y cruza los puntajes.
+CARAS_A_BUSCAR = 6
+TAMANO_MIN_CARA = 0.085   # ancho normalizado; mas chica = demasiado lejos
+RADIO_CARA = 0.14         # cuanto puede moverse una cara entre cuadros
+PACIENCIA_CARA = 45       # cuadros sin verte antes de soltar tu lugar
+
 # La camara es 4:3; la dibujamos con su proporcion real y mapeamos las
 # coordenadas dentro de ese rectangulo para que los aros caigan en su lugar.
 CAM_H = HEIGHT
@@ -129,13 +139,15 @@ EMOCIONES = [
 
 
 class Jugador:
-    def __init__(self, slot):
+    def __init__(self, slot, pos_norm=None):
         self.slot = slot
         self.color = PLAYER_COLORS[slot]
         self.puntos = 0
         self.score_actual = 0.0
         self.mejor_ronda = 0.0
-        self.pos = None  # (x, y) en pantalla
+        self.pos = None        # (x, y) en pantalla, para dibujar
+        self.pos_norm = pos_norm  # (x, y) 0..1, para reencontrarlo
+        self.sin_cara = 0
         self.radio = 60
 
     @property
@@ -159,7 +171,7 @@ class FaceBattle:
         self.snd_final = self.synth.chord([523, 659, 784, 1047], 1.2, 0.45)
         self.snd_join = self.synth.tone(760, 0.12, 12, "sine", 0.28)
 
-        self.camera = core.VisionWorker("faces", max_items=MAX_JUGADORES)
+        self.camera = core.VisionWorker("faces", max_items=CARAS_A_BUSCAR)
         self.camera.start()
 
         self.fx = core.FxLayer()
@@ -179,11 +191,58 @@ class FaceBattle:
         self.ganador_ronda = None
 
     # ---------- deteccion ----------
+    def caras_visibles(self):
+        """Caras lo bastante grandes para ser de alguien parado al frente.
+        Las de la gente que va pasando por detras se ven mucho mas chicas."""
+        return [f for f in self.camera.latest() if f.size >= TAMANO_MIN_CARA]
+
     def caras_ordenadas(self):
-        """Ordenadas de izquierda a derecha. Como la gente se para lado a lado
-        y no se cruza, el orden por X es un identificador estable y suficiente."""
-        caras = self.camera.latest()
-        return sorted(caras, key=lambda f: f.center[0])
+        """De izquierda a derecha. Solo para el lobby, donde todavia no hay
+        jugadores a quienes darles seguimiento."""
+        return sorted(self.caras_visibles(), key=lambda f: f.center[0])
+
+    def asignar_caras(self):
+        """Empareja cada jugador con la cara mas cercana a donde estaba.
+
+        Antes esto se resolvia ordenando por X en cada cuadro, y funcionaba
+        solo si nadie mas aparecia. Con publico caminando detras, una cara
+        extra a la izquierda recorria a todos los jugadores un lugar y los
+        puntajes se cruzaban a media ronda.
+        """
+        libres = self.caras_visibles()
+        asignacion = {}
+
+        # 1) Emparejar por cercania, del par mas cercano al mas lejano
+        pares = []
+        for j in self.jugadores:
+            if j.pos_norm is None:
+                continue
+            for idx, f in enumerate(libres):
+                d = math.dist(j.pos_norm, f.center)
+                if d <= RADIO_CARA:
+                    pares.append((d, j.slot, idx))
+        pares.sort()
+
+        slots_usados, caras_usadas = set(), set()
+        for _, slot, idx in pares:
+            if slot in slots_usados or idx in caras_usadas:
+                continue
+            asignacion[slot] = libres[idx]
+            slots_usados.add(slot)
+            caras_usadas.add(idx)
+
+        # 2) A quien nunca hemos visto (o lleva mucho perdido) le damos una
+        #    cara libre, de izquierda a derecha
+        huerfanos = [j for j in self.jugadores
+                     if j.slot not in slots_usados and j.pos_norm is None]
+        sobrantes = sorted(
+            (f for i, f in enumerate(libres) if i not in caras_usadas),
+            key=lambda f: f.center[0],
+        )
+        for j, f in zip(sorted(huerfanos, key=lambda j: j.slot), sobrantes):
+            asignacion[j.slot] = f
+
+        return asignacion
 
     def on_key(self, e):
         if e.key == pygame.K_ESCAPE:
@@ -200,7 +259,12 @@ class FaceBattle:
                 caras = self.caras_ordenadas()
                 if caras:
                     self.n_jugadores = min(len(caras), MAX_JUGADORES)
-                    self.jugadores = [Jugador(i) for i in range(self.n_jugadores)]
+                    # Guardamos donde estaba cada quien al arrancar: es el
+                    # ancla con la que los volvemos a encontrar cada cuadro.
+                    self.jugadores = [
+                        Jugador(i, pos_norm=caras[i].center)
+                        for i in range(self.n_jugadores)
+                    ]
                     self.iniciar_ronda()
             elif self.state == "FINAL":
                 self.reset_partida()
@@ -221,16 +285,23 @@ class FaceBattle:
         self.fase_inicio = pygame.time.get_ticks()
 
     def actualizar_scores(self):
-        caras = self.caras_ordenadas()
+        asignacion = self.asignar_caras()
         for j in self.jugadores:
-            if j.slot < len(caras):
-                cara = caras[j.slot]
-                j.pos = cam_a_pantalla(*cara.center)
-                j.radio = max(45, int(cara.size * CAM_W * 0.85))
-                j.score_actual = self.emocion.puntuar(cara)
-                j.mejor_ronda = max(j.mejor_ronda, j.score_actual)
-            else:
+            cara = asignacion.get(j.slot)
+            if cara is None:
                 j.score_actual = 0.0
+                j.sin_cara += 1
+                # Si de plano se fue, suelta su lugar para que alguien mas
+                # pueda ocuparlo en vez de quedarse trabado para siempre.
+                if j.sin_cara > PACIENCIA_CARA:
+                    j.pos_norm = None
+                continue
+            j.sin_cara = 0
+            j.pos_norm = cara.center
+            j.pos = cam_a_pantalla(*cara.center)
+            j.radio = max(45, int(cara.size * CAM_W * 0.85))
+            j.score_actual = self.emocion.puntuar(cara)
+            j.mejor_ronda = max(j.mejor_ronda, j.score_actual)
 
     def cerrar_ronda(self):
         mejores = sorted(self.jugadores, key=lambda j: j.mejor_ronda, reverse=True)
@@ -265,10 +336,11 @@ class FaceBattle:
     def draw_aros(self, surf, mostrar_score=True):
         """Marco de esquinas tipo visor, no un aro. Se lee mejor en bloques y
         no tapa la cara de quien esta jugando."""
-        caras = self.caras_ordenadas()
         p = core.PIXEL
         for j in self.jugadores:
-            if j.slot >= len(caras) or j.pos is None:
+            # sin_cara pequeño tolera parpadeos del detector sin que el marco
+            # se prenda y apague todo el tiempo
+            if j.pos is None or j.sin_cara > 4:
                 continue
             x, y, r = core.snap(j.pos[0]), core.snap(j.pos[1]), core.snap(j.radio)
             grosor = p if j.score_actual < UMBRAL_BUENO else p * 2

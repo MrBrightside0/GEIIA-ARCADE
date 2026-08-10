@@ -87,15 +87,27 @@ def boot(caption):
         screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption(caption)
 
-    # Tamano base chico + ampliacion por vecino mas cercano = pixeles duros.
-    fonts = {
-        "xl": PixelFont(_font(24, bold=True), 3),
-        "lg": PixelFont(_font(16, bold=True), 3),
-        "md": PixelFont(_font(15, bold=True), 2),
-        "sm": PixelFont(_font(11, bold=True), 2),
-        "xs": PixelFont(_font(8, bold=True), 2),
+    return screen, pygame.time.Clock(), build_fonts()
+
+
+def build_fonts():
+    """Escala tipografica del arcade.
+
+    Regla aprendida a golpes: solo se amplia el texto GRANDE. Renderear a
+    8 px y multiplicar por 2 no da un pixel art bonito, da una mancha
+    ilegible, porque a ese tamano la letra ya perdio los trazos finos.
+
+    Los titulos si se amplian (a 30 px la letra aguanta y el bloque se ve
+    intencional). El texto de lectura va a tamano real con el antialias
+    apagado: bordes duros, cero difuminado, y perfectamente legible.
+    """
+    return {
+        "xl": PixelFont(_font(32, bold=True), 2),   # 64 px, titulazos
+        "lg": PixelFont(_font(23, bold=True), 2),   # 46 px, encabezados
+        "md": PixelFont(_font(28, bold=True), 1),   # 28 px, marcadores
+        "sm": PixelFont(_font(21, bold=True), 1),   # 21 px, texto normal
+        "xs": PixelFont(_font(17, bold=True), 1),   # 17 px, apoyo
     }
-    return screen, pygame.time.Clock(), fonts
 
 
 # Fuentes de bloque/monoespaciadas: al pixelarlas aguantan mucho mejor que
@@ -131,6 +143,8 @@ class PixelFont:
 
     def render(self, text, antialias=False, color=(255, 255, 255)):
         img = self.f.render(text, False, color)  # sin antialias: bordes duros
+        if self.scale == 1:
+            return img
         w, h = img.get_size()
         if w == 0 or h == 0:
             return img
@@ -244,6 +258,18 @@ class Hand:
     def index_tip(self):
         return self.points[8]
 
+    @property
+    def span(self):
+        """Que tan grande se ve la mano en el cuadro (0..1).
+
+        Es el mejor proxy barato de distancia a la camara: la mano de quien
+        esta jugando ocupa mucho mas que la de alguien que va pasando tres
+        metros atras. Con esto se filtra al publico que camina detras.
+        """
+        xs = [p[0] for p in self.points]
+        ys = [p[1] for p in self.points]
+        return max(max(xs) - min(xs), max(ys) - min(ys))
+
 
 class Face:
     __slots__ = ("points", "blend", "center", "size")
@@ -309,12 +335,31 @@ class VisionWorker(threading.Thread):
         self._teardown()
 
     def _capture_loop(self):
-        """Solo lee la camara. Siempre conserva el cuadro mas reciente."""
+        """Solo lee la camara. Siempre conserva el cuadro mas reciente.
+
+        Vigila ademas que las lecturas realmente funcionen: si otra app
+        (Zoom, Teams, o un juego que quedo abierto) tiene tomada la camara,
+        VideoCapture igual reporta isOpened() == True y luego falla cada
+        read() en silencio. Sin esta vigilancia el juego diria "camara lista"
+        en verde mientras no ve absolutamente nada.
+        """
+        fallos = 0
         while self._running:
             ok, frame = self._cap.read()
             if not ok:
+                fallos += 1
+                if fallos == 150:  # ~1.5 s seguidos sin poder leer
+                    self.error = ("otra aplicación está usando la cámara "
+                                  "(cierra Zoom/Teams o el juego anterior)")
+                    self.available = False
                 time.sleep(0.01)
                 continue
+
+            if fallos:
+                fallos = 0
+                if self.error:  # se recupero sola
+                    self.error = None
+                    self.available = True
 
             # espejo horizontal + BGR->RGB de un solo golpe
             rgb = np.ascontiguousarray(frame[:, ::-1, ::-1])

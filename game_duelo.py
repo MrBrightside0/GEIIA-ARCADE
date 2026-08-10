@@ -46,6 +46,12 @@ GESTO_A_JUGADA = {
 ROUNDS_TO_WIN = 5
 LOCK_WINDOW = 12  # frames que promediamos para decidir tu jugada
 
+# Con publico detras, pedir una sola mano hace que MediaPipe entregue
+# cualquiera de las visibles. Pedimos varias y nos quedamos con la mas
+# grande, que es la de quien esta enfrente jugando.
+MANOS_A_BUSCAR = 3
+SPAN_MINIMO = 0.12  # ver la nota del umbral en game_pong.py
+
 
 def gana_a(jugada):
     """Devuelve la jugada que VENCE a la dada."""
@@ -189,7 +195,7 @@ class Duelo:
         self.snd_empate = self.synth.tone(330, 0.22, 7, "sine", 0.28)
         self.snd_final = self.synth.chord([523, 659, 784, 1047], 1.1, 0.45)
 
-        self.camera = core.VisionWorker("gestures", max_items=1)
+        self.camera = core.VisionWorker("gestures", max_items=MANOS_A_BUSCAR)
         self.camera.start()
 
         self.fx = core.FxLayer()
@@ -216,11 +222,12 @@ class Duelo:
     # ---------- lectura de gestos ----------
     def gesto_actual(self):
         """Jugada mas frecuente en la ventana reciente + que tan estable es."""
-        manos = self.camera.latest()
+        candidatas = [m for m in self.camera.latest() if m.span >= SPAN_MINIMO]
         actual = None
-        if manos and manos[0].gesture in GESTO_A_JUGADA:
-            if manos[0].gesture_score >= 0.55:
-                actual = GESTO_A_JUGADA[manos[0].gesture]
+        if candidatas:
+            mano = max(candidatas, key=lambda m: m.span)  # la mas cercana
+            if mano.gesture in GESTO_A_JUGADA and mano.gesture_score >= 0.55:
+                actual = GESTO_A_JUGADA[mano.gesture]
         self.buffer.append(actual)
 
         validos = [g for g in self.buffer if g is not None]

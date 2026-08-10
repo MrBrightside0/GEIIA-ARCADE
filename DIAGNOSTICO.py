@@ -136,8 +136,12 @@ if mejor_fps > 0 and not problemas:
     os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
     import geiia_core as core
 
-    def probar(modo, n, etiqueta, instruccion, segundos=8):
-        print(f"\n  >>> {etiqueta}: {instruccion}")
+    def probar(modo, n, etiqueta, instruccion, medir, umbral, segundos=9):
+        """medir/umbral sirven para comprobar el filtro de cercania: el que
+        descarta a la gente que pasa por detras. Si tu propio gesto queda por
+        debajo del umbral, el filtro esta demasiado estricto para tu montaje."""
+        print(f"\n  >>> {etiqueta}")
+        print(f"      {instruccion}")
         w = core.VisionWorker(modo, max_items=n)
         w.start()
         t0 = time.time()
@@ -145,12 +149,12 @@ if mejor_fps > 0 and not problemas:
             time.sleep(0.2)
         if w.error:
             print(f"{MAL}{w.error}")
+            problemas.append(str(w.error))
             w.stop()
             return
 
-        vistos = 0
-        total = 0
-        maximo = 0
+        vistos = total = maximo = 0
+        tamanos = []
         t0 = time.time()
         while time.time() - t0 < segundos:
             r = w.latest()
@@ -158,22 +162,48 @@ if mejor_fps > 0 and not problemas:
             if r:
                 vistos += 1
                 maximo = max(maximo, len(r))
+                tamanos.append(max(medir(o) for o in r))
             restante = segundos - (time.time() - t0)
-            print(f"\r      detectados: {len(r)}   quedan {restante:3.0f}s ", end="")
+            actual = max((medir(o) for o in r), default=0.0)
+            print(f"\r      detectados: {len(r)}  tamano: {actual:.3f}  "
+                  f"quedan {restante:3.0f}s   ", end="")
             time.sleep(0.1)
+        w.stop()
 
         pct = 100 * vistos / max(1, total)
-        print(f"\r      {'OK' if pct > 40 else 'CASI NO TE VI'}: "
-              f"deteccion {pct:3.0f}% del tiempo, maximo {maximo} a la vez, "
-              f"{w.fps:.0f} FPS          ")
+        print(f"\r      deteccion {pct:3.0f}% del tiempo | maximo {maximo} a la vez "
+              f"| {w.fps:.0f} FPS                    ")
+
         if pct <= 40:
+            print(f"{MAL}Casi no te vi. Revisa luz y distancia.")
             problemas.append(f"{etiqueta}: poca deteccion, revisa luz y distancia")
-        w.stop()
+        elif tamanos:
+            tamanos.sort()
+            p10 = tamanos[int(len(tamanos) * 0.10)]
+            mediana = tamanos[len(tamanos) // 2]
+            pasan = sum(1 for t in tamanos if t >= umbral) / len(tamanos) * 100
+            print(f"      tamano en cuadro: p10 {p10:.3f} | mediana {mediana:.3f} "
+                  f"| umbral {umbral:.3f} -> pasa {pasan:.0f}%")
+            if pasan < 85:
+                print(f"{MAL}El filtro de cercania te esta descartando a TI.")
+                print(f"        Bajalo a {p10*0.8:.2f} o acercate mas a la camara.")
+                problemas.append(f"{etiqueta}: filtro de cercania demasiado estricto")
+            else:
+                print(f"{OK}El filtro te deja pasar y descartaria a quien pase atras.")
         time.sleep(0.4)
 
-    probar("hands", 2, "MANOS (Air Pong)", "levanta UNA O DOS MANOS abiertas frente a la camara")
-    probar("gestures", 1, "GESTOS (Duelo)", "haz PUNO, luego PALMA, luego VICTORIA")
-    probar("faces", 4, "CARAS (Face Battle)", "mira de frente a la camara")
+    import game_pong
+    import game_faces
+
+    probar("hands", 4, "MANOS (Air Pong)",
+           "LEVANTA UNA O DOS MANOS ABIERTAS, como si jugaras",
+           lambda h: h.span, game_pong.SPAN_MINIMO)
+    probar("gestures", 3, "GESTOS (Mente vs Maquina)",
+           "haz PUNO, luego PALMA, luego VICTORIA",
+           lambda h: h.span, game_pong.SPAN_MINIMO)
+    probar("faces", 6, "CARAS (Face Battle)",
+           "mira de frente a la camara",
+           lambda f: f.size, game_faces.TAMANO_MIN_CARA)
 
 # ==================== RESUMEN ====================
 titulo("RESUMEN")

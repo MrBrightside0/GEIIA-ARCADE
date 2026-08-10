@@ -86,14 +86,8 @@ class SnakeGame:
         pygame.display.set_caption("GEIIA NEURAL SNAKE - TOURNAMENT EDITION")
         self.clock = pygame.time.Clock()
         
-        # Mismas fuentes pixeladas que el resto del arcade
-        self.fonts = {
-            "xl": core.PixelFont(core._font(24, bold=True), 3),
-            "lg": core.PixelFont(core._font(16, bold=True), 3),
-            "md": core.PixelFont(core._font(15, bold=True), 2),
-            "sm": core.PixelFont(core._font(11, bold=True), 2),
-            "xs": core.PixelFont(core._font(8, bold=True), 2),
-        }
+        # Misma escala tipografica que el resto del arcade
+        self.fonts = core.build_fonts()
         self.font_big = self.fonts["xl"]
         self.font_ui = self.fonts["sm"]
         self.font_float = self.fonts["xs"]

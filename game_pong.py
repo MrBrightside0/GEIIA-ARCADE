@@ -49,6 +49,58 @@ HAND_TIMEOUT = 45  # frames sin mano antes de que la CPU tome el control
 # rango util: 0.18..0.82 del alto de la camara cubre toda la cancha.
 HAND_LO, HAND_HI = 0.18, 0.82
 
+# ---- Robustez con publico alrededor ----
+# En una feria pasa gente por detras todo el tiempo. Sin filtro, la mano de
+# un curioso a tres metros le arrebata la paleta al que esta jugando.
+MANOS_A_BUSCAR = 4       # pedimos mas de las que usamos, para poder escoger
+
+# Umbral de cercania. Medido con la webcam de prueba, una CARA a distancia de
+# juego ocupa 0.156-0.184 del cuadro; una mano abierta a esa misma distancia
+# mide parecido o un poco mas. Dejamos 0.12 para tener margen (que a nadie se
+# le caiga el control por pararse 20 cm mas atras) y aun asi descartar a quien
+# pasa al doble de distancia, que da alrededor de 0.08.
+# Verificalo en tu montaje con: python DIAGNOSTICO.py
+SPAN_MINIMO = 0.12
+RADIO_CONTINUIDAD = 0.22  # que tan lejos puede saltar la mano entre cuadros
+
+
+class SeguidorMano:
+    """Decide cual de todas las manos visibles controla una paleta.
+
+    Dos criterios, en este orden:
+      1. Continuidad: si ya venia siguiendo una mano, prefiere la que este
+         cerca de donde estaba. Evita que el control brinque a otra persona.
+      2. Cercania: entre las candidatas, la mas grande, que es la que esta
+         mas cerca de la camara, o sea la del jugador y no la del publico.
+    """
+
+    def __init__(self):
+        self.ultima = None
+        self.perdida = 0
+
+    def actualizar(self, candidatas):
+        """candidatas: [(x, y, span)] del lado que le toca a esta paleta."""
+        if not candidatas:
+            self.perdida += 1
+            if self.perdida > HAND_TIMEOUT:
+                self.ultima = None
+            return None
+
+        elegida = None
+        if self.ultima is not None:
+            cerca = [
+                c for c in candidatas
+                if math.dist((c[0], c[1]), self.ultima) <= RADIO_CONTINUIDAD
+            ]
+            if cerca:
+                elegida = max(cerca, key=lambda c: c[2])
+        if elegida is None:
+            elegida = max(candidatas, key=lambda c: c[2])
+
+        self.ultima = (elegida[0], elegida[1])
+        self.perdida = 0
+        return elegida[1]
+
 
 class Paddle:
     def __init__(self, side, color):
@@ -225,8 +277,15 @@ class AirPong:
         self.snd_win = self.synth.chord([523, 659, 784, 1047], 1.0, 0.45)
         self.snd_beep = self.synth.tone(880, 0.10, 12, "sine", 0.30)
 
-        self.camera = core.VisionWorker("hands", max_items=2)
+        # Pedimos mas manos de las dos que usamos: asi podemos ver a todos los
+        # candidatos y quedarnos con los correctos en vez de que MediaPipe
+        # elija dos cualesquiera y nos toque la de alguien del publico.
+        self.camera = core.VisionWorker("hands", max_items=MANOS_A_BUSCAR)
         self.camera.start()
+
+        self.seguidor_izq = SeguidorMano()
+        self.seguidor_der = SeguidorMano()
+        self.manos_descartadas = 0
 
         self.fx = core.FxLayer()
         self.state = "MENU"
@@ -253,20 +312,26 @@ class AirPong:
 
     # ---------- entrada ----------
     def read_hands(self):
-        """Devuelve (y_izq, y_der) normalizados, o None si ese lado no tiene mano."""
-        hands = self.camera.latest()
-        left_y = right_y = None
-        best_left = best_right = None
+        """Devuelve (y_izq, y_der) normalizados, o None si ese lado no tiene mano.
 
-        for h in hands:
+        Descarta las manos demasiado chicas (gente que va pasando por detras)
+        y deja que cada seguidor escoja con continuidad, para que el control
+        no brinque de persona a persona.
+        """
+        candidatas_izq = []
+        candidatas_der = []
+        self.manos_descartadas = 0
+
+        for h in self.camera.latest():
+            span = h.span
             hx, hy = h.palm
-            if hx < 0.5:
-                # la mano mas a la izquierda manda en ese lado
-                if best_left is None or hx < best_left:
-                    best_left, left_y = hx, hy
-            else:
-                if best_right is None or hx > best_right:
-                    best_right, right_y = hx, hy
+            if span < SPAN_MINIMO:
+                self.manos_descartadas += 1
+                continue
+            (candidatas_izq if hx < 0.5 else candidatas_der).append((hx, hy, span))
+
+        left_y = self.seguidor_izq.actualizar(candidatas_izq)
+        right_y = self.seguidor_der.actualizar(candidatas_der)
 
         # Sin camara: el mouse controla la paleta izquierda para poder probar.
         if not self.camera.available and self.camera.error is not None:
@@ -422,12 +487,19 @@ class AirPong:
     def draw_hand_hint(self, surf):
         """Marca en el lado que le falta jugador, para invitar a entrar."""
         encendido = (pygame.time.get_ticks() // 450) % 2 == 0
+        # Si vemos manos pero todas quedaron fuera por lejanas, el consejo
+        # util no es "levanta la mano" sino "acercate".
+        lejos = self.manos_descartadas > 0
         for paddle, cx in ((self.left, WIDTH // 4), (self.right, WIDTH * 3 // 4)):
             if not paddle.is_cpu:
                 continue
             col = C_TEXT if encendido else C_DIM
-            core.text_at(surf, self.fonts["sm"], "LEVANTA LA MANO", col, cx, FIELD_BOT - 52)
-            core.text_at(surf, self.fonts["xs"], "PARA TOMAR EL CONTROL", C_DIM, cx, FIELD_BOT - 26)
+            if lejos:
+                core.text_at(surf, self.fonts["sm"], "ACERCA MAS LA MANO", col, cx, FIELD_BOT - 52)
+                core.text_at(surf, self.fonts["xs"], "TE VEO MUY LEJOS", C_DIM, cx, FIELD_BOT - 26)
+            else:
+                core.text_at(surf, self.fonts["sm"], "LEVANTA LA MANO", col, cx, FIELD_BOT - 52)
+                core.text_at(surf, self.fonts["xs"], "PARA TOMAR EL CONTROL", C_DIM, cx, FIELD_BOT - 26)
 
     def draw_menu(self, surf):
         core.draw_overlay(surf, 225)

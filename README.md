@@ -86,10 +86,33 @@ Revisa dependencias, modelos, cámara y detección en vivo, y te dice qué falta
 - **Sepárense un poco** entre jugadores: si dos caras se enciman, la IA las
   confunde.
 - **Cierra Zoom, Teams y Meet** antes de abrir el arcade, o se pelean por la
-  cámara.
+  cámara. Si pasa, el juego ahora te lo dice en pantalla en vez de quedarse
+  mudo sin ver nada.
 - La cámara tarda **unos 6 segundos** en calentar al abrir cada juego. El menú
   del juego dice *"cámara lista"* en verde cuando ya se puede jugar.
 - `F11` pone cualquier juego en pantalla completa.
+
+### Gente pasando por detrás
+
+En una feria hay público caminando atrás todo el tiempo, y sin cuidado eso
+rompe los juegos: la mano de un curioso le arrebata la paleta al que está
+jugando, o una cara extra recorre a todos los jugadores de Face Battle y les
+cruza los puntajes a media ronda.
+
+Los tres juegos de cámara lo manejan así:
+
+1. **Filtro de cercanía.** Se mide qué tan grande se ve la mano o la cara en
+   el cuadro, que es un buen proxy de distancia. Lo que se ve muy chico es
+   alguien del fondo y se descarta.
+2. **Continuidad.** Air Pong recuerda dónde estaba la mano que controlaba cada
+   paleta y prefiere la que siga cerca, en vez de saltar a otra persona.
+3. **Identidad por posición.** Face Battle empareja a cada jugador con la cara
+   más cercana a donde estaba, no reordenando por posición X.
+
+**Verifica los umbrales en tu montaje** corriendo `python DIAGNOSTICO.py`: te
+mide tu propia mano y tu propia cara y te dice si el filtro te está dejando
+pasar. Si te descarta a ti, baja `SPAN_MINIMO` en `game_pong.py` o
+`TAMANO_MIN_CARA` en `game_faces.py` — el diagnóstico te sugiere el valor.
 
 ---
 
@@ -148,6 +171,17 @@ siente lento, el problema es la cámara, no la IA.
 
 **Captura e inferencia van en hilos separados.** Si corren en serie, el ciclo
 tarda lectura + inferencia y se pierde uno de cada dos cuadros de la cámara.
+
+**`VideoCapture` miente cuando otra app tiene la cámara.** `isOpened()`
+devuelve `True` y luego cada `read()` falla en silencio. Sin vigilar eso, el
+juego mostraría "cámara lista" en verde sin ver absolutamente nada. El hilo de
+captura cuenta lecturas fallidas y a la segunda de fracasos avisa en pantalla.
+
+**El texto grande se amplía; el chico no.** La tipografía es pixelada
+renderizando sin antialias y escalando con vecino más cercano. Pero ampliar
+texto pequeño no da pixel art, da una mancha ilegible: a 8 px la letra ya
+perdió los trazos. Solo `xl` y `lg` se multiplican (×2); de `md` para abajo va
+a tamaño real con el antialias apagado, que se ve duro y se lee bien.
 
 ---
 
