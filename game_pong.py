@@ -31,10 +31,19 @@ from geiia_core import (
 )
 
 FIELD_TOP = 96   # debajo de la barra GEIIA + el marcador
-FIELD_BOT = HEIGHT - 42  # arriba del pie compartido
+FIELD_BOT = 552  # deja lugar a la franja de camara, ver abajo
+
+# La camara tiene su propia franja DEBAJO de la cancha. Antes iba encimada
+# en la esquina inferior derecha y le tapaba media paleta al jugador 2
+# (el recuadro ocupaba x 904-1104 y la paleta derecha esta en x 1056-1074).
+CAM_W_PIP, CAM_H_PIP = 208, 156
+CAM_X_PIP = (WIDTH - CAM_W_PIP) // 2
+CAM_Y_PIP = 566
 
 PADDLE_W = 18
-PADDLE_H = 140
+# Proporcional a la cancha nueva: mantiene la misma dificultad que cuando
+# la paleta ocupaba ~22% de un campo mas alto.
+PADDLE_H = 104
 PADDLE_MARGIN = 46
 
 BALL_R = 13
@@ -493,11 +502,18 @@ class AirPong:
         cy = franja.centery
         for paddle, x, anchor in ((self.left, 34, "midleft"), (self.right, WIDTH - 34, "midright")):
             etiqueta = "CPU" if paddle.is_cpu else "JUGADOR"
-            signo = -1 if anchor == "midleft" else 1
-            core.text_at(surf, self.fonts["lg"], str(paddle.score), paddle.color, x, cy, anchor)
-            ancho = self.fonts["lg"].size(str(paddle.score))[0]
-            core.text_at(surf, self.fonts["xs"], etiqueta, C_DIM,
-                         x + signo * (ancho + 14), cy, anchor)
+            # Colocamos la etiqueta a partir del rectangulo REAL del numero.
+            # Calcular el desplazamiento a mano tenia el signo invertido: la
+            # etiqueta de la izquierda se salia de pantalla y la de la
+            # derecha se encimaba sobre el marcador.
+            r = core.text_at(surf, self.fonts["lg"], str(paddle.score),
+                             paddle.color, x, cy, anchor)
+            if anchor == "midleft":
+                core.text_at(surf, self.fonts["xs"], etiqueta, C_DIM,
+                             r.right + 18, cy, "midleft")
+            else:
+                core.text_at(surf, self.fonts["xs"], etiqueta, C_DIM,
+                             r.left - 18, cy, "midright")
 
         if self.rally > 1:
             core.text_at(surf, self.fonts["sm"], f"RACHA {self.rally}", C_GOLD, WIDTH // 2, cy)
@@ -505,32 +521,48 @@ class AirPong:
             core.text_at(surf, self.fonts["xs"], f"PRIMERO A {POINTS_TO_WIN}", C_DIM, WIDTH // 2, cy)
 
     def draw_hand_hint(self, surf):
-        """Marca en el lado que le falta jugador, para invitar a entrar."""
+        """Avisos a los lados de la camara, en el lado que le falta jugador.
+
+        Van junto al video y no encima de la cancha: quien lee "levanta la
+        mano" esta viendose a si mismo justo al lado, que es la forma mas
+        rapida de entender que hacer.
+        """
         encendido = (pygame.time.get_ticks() // 450) % 2 == 0
         # Si vemos manos pero todas quedaron fuera por lejanas, el consejo
         # util no es "levanta la mano" sino "acercate".
         lejos = self.manos_descartadas > 0
-        for paddle, cx in ((self.left, WIDTH // 4), (self.right, WIDTH * 3 // 4)):
+        cy = CAM_Y_PIP + CAM_H_PIP // 2
+
+        for paddle, cx in ((self.left, CAM_X_PIP // 2),
+                           (self.right, CAM_X_PIP + CAM_W_PIP + (WIDTH - CAM_X_PIP - CAM_W_PIP) // 2)):
             if not paddle.is_cpu:
+                core.text_at(surf, self.fonts["sm"], "EN JUEGO", paddle.color, cx, cy)
                 continue
             col = C_TEXT if encendido else C_DIM
             if lejos:
-                core.text_at(surf, self.fonts["sm"], "ACERCA MAS LA MANO", col, cx, FIELD_BOT - 52)
-                core.text_at(surf, self.fonts["xs"], "TE VEO MUY LEJOS", C_DIM, cx, FIELD_BOT - 26)
+                core.text_at(surf, self.fonts["sm"], "ACERCA", col, cx, cy - 26)
+                core.text_at(surf, self.fonts["sm"], "LA MANO", col, cx, cy)
+                core.text_at(surf, self.fonts["xs"], "TE VEO LEJOS", C_DIM, cx, cy + 30)
             else:
-                core.text_at(surf, self.fonts["sm"], "LEVANTA LA MANO", col, cx, FIELD_BOT - 52)
-                core.text_at(surf, self.fonts["xs"], "PARA TOMAR EL CONTROL", C_DIM, cx, FIELD_BOT - 26)
+                core.text_at(surf, self.fonts["sm"], "LEVANTA", col, cx, cy - 26)
+                core.text_at(surf, self.fonts["sm"], "LA MANO", col, cx, cy)
+                core.text_at(surf, self.fonts["xs"], "PARA ENTRAR", C_DIM, cx, cy + 30)
 
     def draw_menu(self, surf):
-        core.draw_overlay(surf, 225)
-        cx = WIDTH // 2
-        core.text_at(surf, self.fonts["xl"], "AIR PONG", C_TEXT, cx, 172)
-        core.block(surf, C_ACCENT, (cx - 150, 210, 300, core.PIXEL))
-        core.text_at(surf, self.fonts["sm"], "TU MANO ES LA PALETA", C_ACCENT, cx, 240)
+        # Solo cubre la cancha: la franja de camara se queda visible para que
+        # te puedas encuadrar mientras lees las instrucciones.
+        velo = pygame.Surface((WIDTH, FIELD_BOT), pygame.SRCALPHA)
+        velo.fill((*C_BG, 232))
+        surf.blit(velo, (0, 0))
 
-        panel = pygame.Rect(cx - 300, 296, 600, 214)
+        cx = WIDTH // 2
+        core.text_at(surf, self.fonts["xl"], "AIR PONG", C_TEXT, cx, 148)
+        core.block(surf, C_ACCENT, (cx - 150, 186, 300, core.PIXEL))
+        core.text_at(surf, self.fonts["sm"], "TU MANO ES LA PALETA", C_ACCENT, cx, 214)
+
+        panel = pygame.Rect(cx - 300, 258, 600, 196)
         core.draw_frame(surf, panel, core.C_GRID, "COMO SE JUEGA", self.fonts["xs"], C_DIM)
-        y = panel.y + 46
+        y = panel.y + 42
         for num, text in [
             ("01", "PARATE FRENTE A LA CAMARA, MANO ABIERTA"),
             ("02", "MANO DEL LADO IZQUIERDO = PALETA IZQUIERDA"),
@@ -539,18 +571,31 @@ class AirPong:
         ]:
             core.text_at(surf, self.fonts["xs"], num, C_ACCENT, panel.x + 28, y, "midleft")
             core.text_at(surf, self.fonts["xs"], text, C_TEXT, panel.x + 74, y, "midleft")
-            y += 40
+            y += 38
 
         if (pygame.time.get_ticks() // 450) % 2 == 0:
-            core.text_at(surf, self.fonts["md"], "> ESPACIO PARA JUGAR <", C_ACCENT, cx, 570)
+            core.text_at(surf, self.fonts["md"], "> ESPACIO PARA JUGAR <", C_ACCENT, cx, 502)
 
-        estado, col = core.camera_status(self.camera)
-        if self.camera.error:
-            estado += " - PUEDES JUGAR CON EL MOUSE"
-        core.text_at(surf, self.fonts["xs"], estado, col, cx, 626)
+    def draw_camera_band(self, surf):
+        """Franja propia para la camara, debajo de la cancha."""
+        alto_pie = core.snap(30)
+        y0 = FIELD_BOT + core.PIXEL
+        core.block(surf, core.C_PANEL, (0, y0, WIDTH, HEIGHT - alto_pie - y0))
+
+        core.draw_camera_pip(surf, self.camera, self.fonts,
+                             x=CAM_X_PIP, y=CAM_Y_PIP, w=CAM_W_PIP, h=CAM_H_PIP)
+
+        if self.state in ("MENU", "GAMEOVER") or self.camera.error:
+            estado, col = core.camera_status(self.camera)
+            if self.camera.error:
+                estado += " - USA EL MOUSE"
+            core.text_at(surf, self.fonts["xs"], estado, col,
+                         WIDTH // 2, HEIGHT - alto_pie - 14)
 
     def draw_gameover(self, surf):
-        core.draw_overlay(surf, 215)
+        velo = pygame.Surface((WIDTH, FIELD_BOT), pygame.SRCALPHA)
+        velo.fill((*C_BG, 222))
+        surf.blit(velo, (0, 0))
         cx = WIDTH // 2
         lado = "IZQUIERDA" if self.winner.side == "L" else "DERECHA"
 
@@ -566,9 +611,9 @@ class AirPong:
         core.text_at(surf, self.fonts["md"], "-", C_DIM, cx, marcador.centery)
         core.text_at(surf, self.fonts["lg"], str(self.right.score), self.right.color, cx + 96, marcador.centery)
 
-        core.text_at(surf, self.fonts["xs"], f"MEJOR RACHA: {self.best_rally} GOLPES", C_GOLD, cx, 478)
+        core.text_at(surf, self.fonts["xs"], f"MEJOR RACHA: {self.best_rally} GOLPES", C_GOLD, cx, 466)
         if (pygame.time.get_ticks() // 450) % 2 == 0:
-            core.text_at(surf, self.fonts["md"], "> ESPACIO REVANCHA <", C_TEXT, cx, 556)
+            core.text_at(surf, self.fonts["md"], "> ESPACIO REVANCHA <", C_TEXT, cx, 512)
 
     # ---------- bucle ----------
     def run(self):
@@ -604,8 +649,6 @@ class AirPong:
                 for ball in self.balls:
                     ball.draw(canvas)
                 self.draw_hud(canvas)
-                if self.state != "GAMEOVER":
-                    self.draw_hand_hint(canvas)
 
             self.fx.update_and_draw(canvas)
 
@@ -617,8 +660,10 @@ class AirPong:
             elif self.state == "GAMEOVER":
                 self.draw_gameover(canvas)
 
-            core.draw_camera_pip(canvas, self.camera, self.fonts)
-            # La barra va hasta el final para que nada la tape.
+            # Franja de camara y barra al final, para que nada las tape.
+            self.draw_camera_band(canvas)
+            if self.state != "GAMEOVER":
+                self.draw_hand_hint(canvas)
             core.draw_chrome(canvas, self.fonts, "AIR PONG")
 
             ox = oy = 0

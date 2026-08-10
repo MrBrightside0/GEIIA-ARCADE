@@ -17,11 +17,72 @@ import subprocess
 import sys
 import threading
 
+os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+
 import customtkinter as ctk
 
 ctk.set_appearance_mode("Dark")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MUSICA = os.path.join(BASE_DIR, "musica.mp3")
+
+
+class Musica:
+    """Musica de fondo del menu.
+
+    Tk no tiene audio propio, asi que usamos el mixer de pygame sin abrir
+    ninguna ventana. Se pausa sola mientras corre un juego: cada juego trae
+    su propio audio y encimarlos suena horrible.
+
+    Todo va dentro de try: que falte el mp3 o que la compu no tenga salida
+    de audio no puede tumbar el menu.
+    """
+
+    def __init__(self, ruta, volumen=0.30):
+        self.disponible = False
+        self.silenciada = False
+        self._mixer = None
+        try:
+            import pygame
+
+            pygame.mixer.init()
+            if not os.path.exists(ruta):
+                print(f"Sin música de fondo: no encontré {os.path.basename(ruta)}")
+                return
+            pygame.mixer.music.load(ruta)
+            pygame.mixer.music.set_volume(volumen)
+            pygame.mixer.music.play(-1, fade_ms=1500)
+            self._mixer = pygame.mixer
+            self.disponible = True
+        except Exception as exc:  # noqa: BLE001 - el menu manda, no la musica
+            print(f"Sin música de fondo: {exc}")
+
+    def pausar(self):
+        if self.disponible and not self.silenciada:
+            self._mixer.music.pause()
+
+    def reanudar(self):
+        if self.disponible and not self.silenciada:
+            self._mixer.music.unpause()
+
+    def alternar(self):
+        """Devuelve True si quedo silenciada."""
+        if not self.disponible:
+            return None
+        self.silenciada = not self.silenciada
+        if self.silenciada:
+            self._mixer.music.pause()
+        else:
+            self._mixer.music.unpause()
+        return self.silenciada
+
+    def cerrar(self):
+        if self.disponible:
+            try:
+                self._mixer.music.stop()
+                self._mixer.quit()
+            except Exception:
+                pass
 
 # ==================== PALETA ====================
 # Las mismas cinco tintas que usan los juegos (ver geiia_core.py).
@@ -207,7 +268,12 @@ class ArcadeMenu(ctk.CTk):
         self.bind("<space>", lambda e: self._launch(self.selected))
         self.bind("<Escape>", lambda e: self._on_escape())
         self.bind("<F11>", lambda e: self._toggle_fullscreen())
-        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.bind("<m>", lambda e: self._toggle_musica())
+        self.bind("<M>", lambda e: self._toggle_musica())
+        self.protocol("WM_DELETE_WINDOW", self._salir)
+
+        self.musica = Musica(MUSICA)
+        self._refresh_musica()
 
         self._refresh_selection()
         self.focus_force()
@@ -264,7 +330,7 @@ class ArcadeMenu(ctk.CTk):
 
         self.hint_lbl = ctk.CTkLabel(
             footer,
-            text="FLECHAS MOVER    ENTER JUGAR    F11 PANTALLA    ESC SALIR",
+            text="FLECHAS MOVER   ENTER JUGAR   M MUSICA   F11 PANTALLA   ESC SALIR",
             font=(FUENTE, 13, "bold"),
             text_color=C_DIM,
         )
@@ -274,6 +340,11 @@ class ArcadeMenu(ctk.CTk):
             footer, text="CAMARA ...", font=(FUENTE, 13, "bold"), text_color=C_DIM
         )
         self.cam_lbl.pack(side="right", padx=40)
+
+        self.mus_lbl = ctk.CTkLabel(
+            footer, text="", font=(FUENTE, 13, "bold"), text_color=C_DIM
+        )
+        self.mus_lbl.pack(side="right", padx=(0, 24))
 
     def _move(self, delta):
         self._select((self.selected + delta) % len(self.cards))
@@ -291,7 +362,24 @@ class ArcadeMenu(ctk.CTk):
         if self.is_fullscreen:
             self._toggle_fullscreen()
         else:
-            self.destroy()
+            self._salir()
+
+    def _salir(self):
+        self.musica.cerrar()
+        self.destroy()
+
+    def _toggle_musica(self):
+        self.musica.alternar()
+        self._refresh_musica()
+
+    def _refresh_musica(self):
+        if not self.musica.disponible:
+            self.mus_lbl.configure(text="")
+            return
+        if self.musica.silenciada:
+            self.mus_lbl.configure(text="MUSICA OFF", text_color=C_DIM)
+        else:
+            self.mus_lbl.configure(text="MUSICA ON", text_color=C_VERDE)
 
     def _toggle_fullscreen(self):
         self.is_fullscreen = not self.is_fullscreen
@@ -307,6 +395,7 @@ class ArcadeMenu(ctk.CTk):
 
         self.launching = True
         self.withdraw()
+        self.musica.pausar()  # el juego trae su propio audio
 
         def run():
             env = dict(os.environ)
@@ -323,6 +412,7 @@ class ArcadeMenu(ctk.CTk):
         self.launching = False
         self.deiconify()
         self.focus_force()
+        self.musica.reanudar()
 
     def _camera_probe(self):
         ok = check_camera()

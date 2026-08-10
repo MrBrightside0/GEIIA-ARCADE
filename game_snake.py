@@ -82,8 +82,9 @@ class SnakeGame:
         
         self.load_assets()
         
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("GEIIA NEURAL SNAKE - TOURNAMENT EDITION")
+        # Misma ventana que los demas juegos: SCALED es lo que hace que F11
+        # funcione, y trae respaldo si SDL no consigue renderer acelerado.
+        self.screen = core.abrir_pantalla("GEIIA NEURAL SNAKE")
         self.clock = pygame.time.Clock()
         
         # Misma escala tipografica que el resto del arcade
@@ -225,7 +226,10 @@ class SnakeGame:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: pygame.quit(); sys.exit()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE: 
+                if event.key == pygame.K_F11:
+                    core.alternar_pantalla_completa()
+                    continue
+                if event.key == pygame.K_ESCAPE:
                     if self.state == "MENU":
                         self.return_to_main()
                     else:

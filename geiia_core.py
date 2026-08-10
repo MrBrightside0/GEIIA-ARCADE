@@ -78,16 +78,35 @@ def boot(caption):
     pygame.init()
     pygame.font.init()
 
-    # SCALED da escalado limpio en pantalla completa, pero necesita que SDL
-    # pueda crear un renderer acelerado. En equipos con drivers viejos o por
-    # escritorio remoto eso falla, y sin este respaldo el juego no abriria.
+    screen = abrir_pantalla(caption)
+
+    return screen, pygame.time.Clock(), build_fonts()
+
+
+def abrir_pantalla(caption):
+    """Crea la ventana del juego.
+
+    SCALED da escalado limpio en pantalla completa Y es lo que hace que
+    pygame.display.toggle_fullscreen() funcione bien; sin esa bandera, F11
+    puede no hacer nada. Pero SCALED necesita que SDL consiga un renderer
+    acelerado, y en equipos con drivers viejos o por escritorio remoto eso
+    falla: sin el respaldo, el juego ni siquiera abriria.
+    """
     try:
         screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED)
     except pygame.error:
         screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption(caption)
+    return screen
 
-    return screen, pygame.time.Clock(), build_fonts()
+
+def alternar_pantalla_completa():
+    """F11. No recrea la ventana, asi que la superficie que ya tenga el juego
+    guardada sigue siendo valida."""
+    try:
+        pygame.display.toggle_fullscreen()
+    except pygame.error:
+        pass
 
 
 def build_fonts():
@@ -301,7 +320,10 @@ class VisionWorker(threading.Thread):
 
         self._lock = threading.Lock()
         self._results = []
-        self._preview = None  # frame RGB pequeno para el PIP
+        self._preview = None  # ultimo frame RGB, a resolucion completa
+        self._preview_seq = 0
+        self._cache_surf = None
+        self._cache_key = None
         self._running = True
 
         # La captura vive en su propio hilo y solo guarda el cuadro MAS
@@ -368,7 +390,13 @@ class VisionWorker(threading.Thread):
                 self._frame = rgb
                 self._seq += 1
             with self._lock:
-                self._preview = np.ascontiguousarray(rgb[::2, ::2])
+                # Guardamos el cuadro completo, no una version reducida: el
+                # hilo de captura acaba de crear este arreglo y no lo vuelve a
+                # tocar, asi que quedarnos con la referencia no cuesta ninguna
+                # copia y nos deja la camara a resolucion completa para el
+                # fondo de Face Battle.
+                self._preview = rgb
+                self._preview_seq += 1
 
     def _infer_loop(self):
         """Corre MediaPipe sobre el ultimo cuadro disponible, sin esperar
@@ -530,20 +558,43 @@ class VisionWorker(threading.Thread):
             return list(self._results)
 
     def preview_surface(self, width, height, pixel=0):
-        """pixel>1 baja la imagen y la vuelve a subir con vecino mas cercano,
-        para que el video de la camara se vea en bloques como el resto del
-        arcade en vez de chocar con el estilo."""
+        """Imagen de la camara lista para dibujar, a resolucion completa.
+
+        Se deja NITIDA a proposito. Pixelarla para que combinara con los
+        graficos de 8 bits sonaba coherente, pero mata lo mejor del stand:
+        verte a ti mismo jugando. Los bloques son para los graficos; la
+        camara es la ventana al mundo real.
+
+        (pixel>1 sigue disponible por si algun juego lo quiere, pero ninguno
+        lo usa.)
+
+        El resultado se guarda en cache porque la camara entrega ~30 cuadros
+        por segundo y el juego dibuja a 60: sin cache reescalariamos el mismo
+        cuadro dos veces de gratis, y a pantalla completa eso si se siente.
+        """
         with self._lock:
             arr = self._preview
+            seq = self._preview_seq
+            clave = (seq, width, height, pixel)
+            if self._cache_key == clave:
+                return self._cache_surf
+
         if arr is None:
             return None
+
         surf = pygame.surfarray.make_surface(np.transpose(arr, (1, 0, 2)))
         if pixel > 1:
             chico = pygame.transform.smoothscale(
                 surf, (max(1, width // pixel), max(1, height // pixel))
             )
-            return pygame.transform.scale(chico, (width, height))
-        return pygame.transform.smoothscale(surf, (width, height))
+            salida = pygame.transform.scale(chico, (width, height))
+        else:
+            salida = pygame.transform.smoothscale(surf, (width, height))
+
+        with self._lock:
+            self._cache_key = clave
+            self._cache_surf = salida
+        return salida
 
 
 # ==================== UTILIDADES VISUALES ====================
@@ -733,7 +784,7 @@ def draw_camera_pip(surf, camera, fonts, x=None, y=None, w=200, h=150):
     y = HEIGHT - h - 44 if y is None else y  # 44 deja libre el pie compartido
 
     x, y, w, h = snap(x), snap(y), snap(w), snap(h)
-    frame = camera.preview_surface(w, h, pixel=3) if camera else None
+    frame = camera.preview_surface(w, h) if camera else None
     if frame:
         surf.blit(frame, (x, y))
         pygame.draw.rect(surf, C_GRID, (x, y, w, h), PIXEL)
@@ -778,7 +829,7 @@ def handle_window_events(camera=None, on_key=None):
             exit_game(camera)
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_F11:
-                pygame.display.toggle_fullscreen()
+                alternar_pantalla_completa()
             elif on_key:
                 on_key(e)
     return events

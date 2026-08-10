@@ -320,10 +320,8 @@ class FaceBattle:
     # ---------- dibujo ----------
     def draw_camara(self, surf, oscurecer=150):
         surf.fill(C_BG)
-        # pixel=5 baja el video y lo vuelve a subir en bloques: asi la camara
-        # se ve del mismo material que el resto del arcade en vez de ser una
-        # foto realista pegada sobre graficos de 8 bits.
-        frame = self.camera.preview_surface(CAM_W, CAM_H, pixel=5)
+        # Camara nitida: la gracia del juego es verse la cara.
+        frame = self.camera.preview_surface(CAM_W, CAM_H)
         if frame:
             surf.blit(frame, (CAM_X, CAM_Y))
             if oscurecer:
