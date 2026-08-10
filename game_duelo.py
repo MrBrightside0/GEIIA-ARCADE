@@ -50,7 +50,10 @@ LOCK_WINDOW = 12  # frames que promediamos para decidir tu jugada
 # cualquiera de las visibles. Pedimos varias y nos quedamos con la mas
 # grande, que es la de quien esta enfrente jugando.
 MANOS_A_BUSCAR = 3
-SPAN_MINIMO = 0.12  # ver la nota del umbral en game_pong.py
+# Medido: una mano a distancia de juego ocupa 0.27-0.40 del cuadro, asi que
+# alguien al doble de distancia da ~0.19. Aqui no hace falta histeresis como
+# en el Pong: el jugador esta mostrando un gesto a proposito y de frente.
+SPAN_MINIMO = 0.20  # ver la nota completa en game_pong.py
 
 
 def gana_a(jugada):

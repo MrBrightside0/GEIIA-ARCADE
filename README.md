@@ -109,10 +109,29 @@ Los tres juegos de cámara lo manejan así:
 3. **Identidad por posición.** Face Battle empareja a cada jugador con la cara
    más cercana a donde estaba, no reordenando por posición X.
 
-**Verifica los umbrales en tu montaje** corriendo `python DIAGNOSTICO.py`: te
-mide tu propia mano y tu propia cara y te dice si el filtro te está dejando
-pasar. Si te descarta a ti, baja `SPAN_MINIMO` en `game_pong.py` o
-`TAMANO_MIN_CARA` en `game_faces.py` — el diagnóstico te sugiere el valor.
+Medido en la webcam de prueba, a distancia de juego:
+
+| | tamaño en el cuadro | al doble de distancia |
+|---|---|---|
+| Mano abierta | 0.27 – 0.40 (mediana 0.38) | ~0.19 |
+| Cara | 0.156 – 0.184 (mediana 0.166) | ~0.08 |
+
+Por eso Air Pong usa **dos** umbrales en vez de uno: hay que llegar a **0.20**
+para *tomar* el control (lo que deja fuera a quien pasa al doble de distancia)
+pero basta **0.13** para *conservarlo*, y así a nadie se le cae la paleta por
+estirar el brazo o girar la mano. Face Battle usa 0.085, que deja pasar al
+jugador con el doble de margen.
+
+**Verifica los umbrales en tu montaje:**
+
+```bash
+python DIAGNOSTICO.py manos    # solo la calibración de manos, ~20 seg
+python DIAGNOSTICO.py          # revisión completa
+```
+
+Te mide tu propia mano y tu propia cara y te dice si el filtro te está
+descartando a ti, con el valor exacto que habría que poner. Los umbrales
+están al inicio de `game_pong.py`, `game_duelo.py` y `game_faces.py`.
 
 ---
 

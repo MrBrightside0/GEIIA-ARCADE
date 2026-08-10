@@ -22,6 +22,92 @@ AVISO = "  [!]   "
 problemas = []
 
 
+# ==================== MODO RAPIDO: SOLO MANOS ====================
+def calibrar_manos():
+    """python DIAGNOSTICO.py manos
+
+    Mide que tan grande se ve TU mano y lo compara con el umbral de cercania
+    de Air Pong y del Duelo. Ese umbral existe para ignorar a la gente que
+    pasa por detras; si te descarta a ti, los juegos no responden.
+    """
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+    import geiia_core as core
+    import game_pong
+
+    umbral = game_pong.SPAN_MINIMO
+    print("\n  CALIBRACION DEL UMBRAL DE MANOS")
+    print("  " + "-" * 54)
+    print(f"  Umbral actual: {umbral:.3f}")
+    print("  Ponte a la distancia a la que se pararia alguien en el stand.\n")
+
+    w = core.VisionWorker("hands", max_items=4)
+    w.start()
+    t0 = time.time()
+    while not w.available and w.error is None and time.time() - t0 < 30:
+        print(f"\r  preparando camara... {time.time()-t0:3.0f}s ", end="")
+        time.sleep(0.2)
+    if w.error:
+        print(f"\r{MAL}{w.error}                    ")
+        w.stop()
+        return
+    print("\r  camara lista.                        \n")
+
+    for i in (3, 2, 1):
+        print(f"  levanta la MANO ABIERTA en... {i}")
+        time.sleep(1)
+    print("\n  ¡AHORA! Muevela un poco, como si jugaras.\n")
+
+    tamanos = []
+    segundos = 12
+    t0 = time.time()
+    while time.time() - t0 < segundos:
+        actual = max((h.span for h in w.latest()), default=0.0)
+        if actual > 0:
+            tamanos.append(actual)
+        barra = "#" * int(actual * 60)
+        marca = "PASA" if actual >= umbral else ("lejos" if actual > 0 else "no te veo")
+        print(f"\r  {actual:.3f} |{barra:<28}| {marca:<10} {segundos-(time.time()-t0):3.0f}s ", end="")
+        time.sleep(0.1)
+    w.stop()
+
+    print("\n")
+    if not tamanos:
+        print(f"{MAL}No detecte ninguna mano en todo el intento.")
+        print("        Revisa la luz y que la mano se vea completa y abierta.")
+        return
+
+    tamanos.sort()
+    p10 = tamanos[int(len(tamanos) * 0.10)]
+    mediana = tamanos[len(tamanos) // 2]
+    pasan = sum(1 for t in tamanos if t >= umbral) / len(tamanos) * 100
+
+    print(f"  muestras: {len(tamanos)}")
+    print(f"  tu mano:  minimo {tamanos[0]:.3f} | p10 {p10:.3f} | mediana {mediana:.3f} "
+          f"| maximo {tamanos[-1]:.3f}")
+    print(f"  umbral {umbral:.3f} -> te deja pasar el {pasan:.0f}% del tiempo\n")
+
+    if pasan >= 90:
+        margen = mediana / umbral
+        print(f"{OK}Bien calibrado. Tu mano mide {margen:.1f}x el umbral,")
+        print("        y alguien al doble de distancia quedaria por debajo.")
+        if margen > 3:
+            print(f"{AVISO}Hay MUCHO margen. Si se te cuela gente de atras,")
+            print(f"        puedes subir SPAN_MINIMO hasta {mediana*0.55:.2f}.")
+    else:
+        sugerido = round(p10 * 0.8, 2)
+        print(f"{MAL}El filtro te esta descartando a TI.")
+        print(f"        Abre game_pong.py y game_duelo.py y cambia:")
+        print(f"            SPAN_MINIMO = {sugerido:.2f}")
+        print("        (o acercate mas a la camara si el stand lo permite)")
+
+
+if len(sys.argv) > 1 and sys.argv[1].lower().startswith("mano"):
+    calibrar_manos()
+    print()
+    sys.exit(0)
+
+
 def titulo(t):
     print(f"\n{t}\n" + "-" * 58)
 

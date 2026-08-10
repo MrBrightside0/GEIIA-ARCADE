@@ -54,13 +54,22 @@ HAND_LO, HAND_HI = 0.18, 0.82
 # un curioso a tres metros le arrebata la paleta al que esta jugando.
 MANOS_A_BUSCAR = 4       # pedimos mas de las que usamos, para poder escoger
 
-# Umbral de cercania. Medido con la webcam de prueba, una CARA a distancia de
-# juego ocupa 0.156-0.184 del cuadro; una mano abierta a esa misma distancia
-# mide parecido o un poco mas. Dejamos 0.12 para tener margen (que a nadie se
-# le caiga el control por pararse 20 cm mas atras) y aun asi descartar a quien
-# pasa al doble de distancia, que da alrededor de 0.08.
-# Verificalo en tu montaje con: python DIAGNOSTICO.py
-SPAN_MINIMO = 0.12
+# ---- Umbrales de cercania (medidos, no adivinados) ----
+# Con la webcam de prueba, una mano abierta a distancia de juego ocupa
+# 0.268-0.398 del cuadro (mediana 0.38). Alguien al DOBLE de distancia da
+# entonces ~0.19, asi que un umbral bajo tipo 0.12 lo dejaria pasar: es
+# justo el publico que queriamos filtrar.
+#
+# Usamos dos umbrales en vez de uno (histeresis):
+#   - Para TOMAR el control hay que estar claramente cerca (0.20). Eso deja
+#     fuera a quien pasa al doble de distancia.
+#   - Para CONSERVARLO basta mucho menos (0.13), para que a nadie se le caiga
+#     la paleta por estirar el brazo, girar la mano o un parpadeo del
+#     detector.
+# Verificalo en tu montaje con:  python DIAGNOSTICO.py manos
+SPAN_ADQUIRIR = 0.20
+SPAN_MANTENER = 0.13
+SPAN_MINIMO = SPAN_MANTENER  # el piso absoluto, para los avisos en pantalla
 RADIO_CONTINUIDAD = 0.22  # que tan lejos puede saltar la mano entre cuadros
 
 
@@ -79,7 +88,14 @@ class SeguidorMano:
         self.perdida = 0
 
     def actualizar(self, candidatas):
-        """candidatas: [(x, y, span)] del lado que le toca a esta paleta."""
+        """candidatas: [(x, y, span)] del lado que le toca a esta paleta.
+
+        El umbral de tamano depende de si ya veniamos siguiendo a alguien:
+        entrar cuesta, quedarse es facil.
+        """
+        umbral = SPAN_MANTENER if self.ultima is not None else SPAN_ADQUIRIR
+        candidatas = [c for c in candidatas if c[2] >= umbral]
+
         if not candidatas:
             self.perdida += 1
             if self.perdida > HAND_TIMEOUT:
@@ -325,10 +341,14 @@ class AirPong:
         for h in self.camera.latest():
             span = h.span
             hx, hy = h.palm
-            if span < SPAN_MINIMO:
+            if span < SPAN_ADQUIRIR:
+                # No alcanza para tomar el control: sirve para decidir si el
+                # consejo en pantalla es "levanta la mano" o "acercate".
                 self.manos_descartadas += 1
-                continue
-            (candidatas_izq if hx < 0.5 else candidatas_der).append((hx, hy, span))
+            if span >= SPAN_MANTENER:
+                # El seguidor aplica el umbral que le toque segun si ya
+                # venia siguiendo a alguien.
+                (candidatas_izq if hx < 0.5 else candidatas_der).append((hx, hy, span))
 
         left_y = self.seguidor_izq.actualizar(candidatas_izq)
         right_y = self.seguidor_der.actualizar(candidatas_der)
