@@ -364,7 +364,7 @@ class AirPong:
 
         # Sin camara: el mouse controla la paleta izquierda para poder probar.
         if not self.camera.available and self.camera.error is not None:
-            my = pygame.mouse.get_pos()[1]
+            my = core.mouse_logico()[1]  # ya corregido si estamos en pantalla completa
             left_y = HAND_LO + (my / HEIGHT) * (HAND_HI - HAND_LO)
 
         return left_y, right_y
@@ -670,9 +670,7 @@ class AirPong:
             if self.shake > 0:
                 ox, oy = random.randint(-5, 5), random.randint(-5, 5)
                 self.shake -= 1
-            self.screen.fill((0, 0, 0))
-            self.screen.blit(canvas, (ox, oy))
-            pygame.display.flip()
+            core.presentar(canvas, (ox, oy))
             self.clock.tick(60)
 
 

@@ -83,30 +83,77 @@ def boot(caption):
     return screen, pygame.time.Clock(), build_fonts()
 
 
-def abrir_pantalla(caption):
-    """Crea la ventana del juego.
+_pantalla_completa = False
 
-    SCALED da escalado limpio en pantalla completa Y es lo que hace que
-    pygame.display.toggle_fullscreen() funcione bien; sin esa bandera, F11
-    puede no hacer nada. Pero SCALED necesita que SDL consiga un renderer
-    acelerado, y en equipos con drivers viejos o por escritorio remoto eso
-    falla: sin el respaldo, el juego ni siquiera abriria.
-    """
-    try:
-        screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED)
-    except pygame.error:
-        screen = pygame.display.set_mode((WIDTH, HEIGHT))
+
+def abrir_pantalla(caption):
+    """Crea la ventana del juego, siempre a WIDTH x HEIGHT."""
+    global _pantalla_completa
+    _pantalla_completa = False
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption(caption)
     return screen
 
 
 def alternar_pantalla_completa():
-    """F11. No recrea la ventana, asi que la superficie que ya tenga el juego
-    guardada sigue siendo valida."""
+    """F11: cambia entre ventana y pantalla completa a resolucion del monitor."""
+    global _pantalla_completa
+    _pantalla_completa = not _pantalla_completa
     try:
-        pygame.display.toggle_fullscreen()
+        if _pantalla_completa:
+            info = pygame.display.Info()
+            pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
+        else:
+            pygame.display.set_mode((WIDTH, HEIGHT))
+        pygame.mouse.set_visible(not _pantalla_completa)
     except pygame.error:
-        pass
+        _pantalla_completa = not _pantalla_completa  # no se pudo, deshacer
+
+
+def _encuadre(dw, dh):
+    """Escala y margenes para meter el canvas en una ventana de dw x dh."""
+    escala = min(dw / WIDTH, dh / HEIGHT)
+    nw, nh = int(WIDTH * escala), int(HEIGHT * escala)
+    return escala, nw, nh, (dw - nw) // 2, (dh - nh) // 2
+
+
+def presentar(canvas, offset=(0, 0)):
+    """Vuelca el canvas a la ventana y actualiza la pantalla.
+
+    El escalado a pantalla completa lo hacemos A MANO en vez de confiar en
+    la bandera pygame.SCALED. Motivo: SCALED necesita que SDL consiga un
+    renderer acelerado, y cuando no puede la descarta EN SILENCIO (el flag
+    sale en False sin ningun error). El resultado era que F11 si ponia la
+    ventana en pantalla completa pero el juego seguia dibujandose en un
+    rectangulo de 1120x760 en una esquina, con todo lo demas en negro.
+
+    Se usa transform.scale, que es vecino mas cercano: ademas de ser rapido,
+    es justo lo que le queda al estilo de 8 bits.
+    """
+    destino = pygame.display.get_surface()
+    dw, dh = destino.get_size()
+
+    if (dw, dh) == (WIDTH, HEIGHT):
+        destino.blit(canvas, offset)
+    else:
+        _, nw, nh, ox, oy = _encuadre(dw, dh)
+        destino.fill((0, 0, 0))
+        destino.blit(pygame.transform.scale(canvas, (nw, nh)),
+                     (ox + offset[0], oy + offset[1]))
+    pygame.display.flip()
+
+
+def mouse_logico():
+    """Mouse en coordenadas del canvas, aunque estemos en pantalla completa."""
+    mx, my = pygame.mouse.get_pos()
+    destino = pygame.display.get_surface()
+    if destino is None:
+        return mx, my
+    dw, dh = destino.get_size()
+    if (dw, dh) == (WIDTH, HEIGHT):
+        return mx, my
+    escala, _, _, ox, oy = _encuadre(dw, dh)
+    return (mx - ox) / escala, (my - oy) / escala
 
 
 def build_fonts():

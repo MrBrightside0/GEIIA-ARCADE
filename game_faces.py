@@ -603,8 +603,7 @@ class FaceBattle:
             core.draw_chrome(canvas, self.fonts, "FACE BATTLE",
                              "ESC VOLVER    F11 PANTALLA    F3 BLENDSHAPES")
 
-            self.screen.blit(canvas, (0, 0))
-            pygame.display.flip()
+            core.presentar(canvas)
             self.clock.tick(60)
 
 

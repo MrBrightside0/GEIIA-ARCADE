@@ -506,8 +506,7 @@ class Duelo:
             core.draw_camera_pip(canvas, self.camera, self.fonts, x=16, y=HEIGHT - 194)
             core.draw_chrome(canvas, self.fonts, "MENTE VS MAQUINA")
 
-            self.screen.blit(canvas, (0, 0))
-            pygame.display.flip()
+            core.presentar(canvas)
             self.clock.tick(60)
 
 

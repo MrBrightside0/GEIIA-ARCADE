@@ -501,8 +501,7 @@ class SnakeGame:
 
         core.draw_chrome(canvas, self.fonts, "NEURAL SNAKE",
                          "ESC MENU    ESPACIO JUGAR    F11 PANTALLA")
-        self.screen.blit(canvas, (ox, oy))
-        pygame.display.flip()
+        core.presentar(canvas, (ox, oy))
 
     def run(self):
         while True:
