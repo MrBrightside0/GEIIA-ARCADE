@@ -1,0 +1,988 @@
+<meta charset="utf-8">
+<title>GEIIA Arcade — Manual de instalación y juego</title>
+<style>
+  /* ------------------------------------------------------------------
+     GEIIA ARCADE — manual
+     Diseño: ficha de instrucciones de panel de control de arcade.
+     Fondo claro para que se imprima bien, bloques de color planos y
+     reglas gruesas. Cada juego usa el mismo color que tiene en el menú.
+     Documento de un solo mundo visual (impreso): todos los colores van
+     declarados explícitamente, sin depender del tema del visor.
+     ------------------------------------------------------------------ */
+
+  :root {
+    --papel:      #EFEFEA;
+    --papel-alt:  #E4E4DD;
+    --tinta:      #14141A;
+    --tinta-suave:#5C5E68;
+    --tinta-tenue:#8A8C94;
+
+    --ambar:  #E8A800;
+    --rojo:   #D93B41;
+    --verde:  #2FA968;
+    --azul:   #3B7FD4;
+    --morado: #9257CF;
+
+    --display: Consolas, "Cascadia Mono", "Courier New", monospace;
+    --texto:   "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  }
+
+  @page { size: A4; margin: 0; }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--papel); }
+
+  body {
+    margin: 0;
+    background: var(--papel);
+    color: var(--tinta);
+    font-family: var(--texto);
+    font-size: 10.5pt;
+    line-height: 1.55;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .hoja {
+    width: 210mm;
+    /* 294mm y no 297: a la medida exacta de la hoja, cualquier redondeo de
+       subpíxel la desborda y Chrome mete una página en blanco de más. */
+    min-height: 294mm;
+    padding: 15mm 17mm 13mm;
+    margin: 0 auto;
+    background: var(--papel);
+    position: relative;
+    page-break-after: always;
+    break-after: page;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Sin esto queda una hoja vacía al final */
+  .hoja:last-child,
+  .hoja:last-of-type {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* ---------- tipografía base ---------- */
+  h1, h2, h3, .etiqueta, .paso-num, .dato dt {
+    font-family: var(--display);
+    text-transform: uppercase;
+  }
+
+  h2 {
+    font-size: 15pt;
+    letter-spacing: 0.06em;
+    margin: 0 0 3mm;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-size: 10.5pt;
+    letter-spacing: 0.09em;
+    margin: 0 0 2mm;
+    color: var(--tinta-suave);
+  }
+
+  p { margin: 0 0 2.5mm; max-width: 62ch; }
+
+  strong { font-weight: 700; }
+
+  .etiqueta {
+    font-size: 8pt;
+    letter-spacing: 0.16em;
+    color: var(--tinta-suave);
+    margin: 0 0 1.5mm;
+  }
+
+  .regla { height: 1.6mm; background: var(--tinta); margin: 0 0 4mm; }
+  .regla-fina { height: 0.4mm; background: var(--tinta); opacity: .25; margin: 4mm 0; }
+
+  /* ---------- portada ---------- */
+  .portada { justify-content: space-between; }
+
+  .marca { display: flex; align-items: flex-start; gap: 6mm; }
+  .marca .ficha {
+    width: 13mm; height: 34mm; background: var(--ambar);
+    flex: none; margin-top: 2mm;
+  }
+  .marca h1 {
+    font-size: 40pt;
+    line-height: 0.92;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .marca .sub {
+    font-family: var(--display);
+    font-size: 9pt;
+    letter-spacing: 0.18em;
+    color: var(--tinta-suave);
+    margin-top: 3mm;
+    text-transform: uppercase;
+  }
+
+  .lema {
+    font-size: 13pt;
+    line-height: 1.4;
+    max-width: 46ch;
+    margin: 0;
+  }
+  .lema b { font-weight: 700; }
+
+  /* índice de juegos en portada */
+  .indice { display: grid; gap: 0; border-top: 1.6mm solid var(--tinta); }
+  .indice-fila {
+    display: grid;
+    grid-template-columns: 9mm 1fr 32mm 26mm;
+    align-items: center;
+    gap: 4mm;
+    padding: 3.2mm 0;
+    border-bottom: 0.3mm solid rgba(20,20,26,.22);
+  }
+  .indice-fila .barra { height: 7mm; width: 7mm; }
+  .indice-fila .nom {
+    font-family: var(--display);
+    font-size: 11.5pt;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .indice-fila .meta,
+  .indice-fila .pag {
+    font-family: var(--display);
+    font-size: 8.5pt;
+    letter-spacing: 0.06em;
+    color: var(--tinta-suave);
+    text-transform: uppercase;
+  }
+  .indice-fila .pag { text-align: right; }
+
+  .pie-portada {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-family: var(--display);
+    font-size: 8pt;
+    letter-spacing: 0.12em;
+    color: var(--tinta-suave);
+    text-transform: uppercase;
+  }
+
+  /* ---------- encabezado de sección ---------- */
+  .cabecera {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6mm;
+    margin-bottom: 2mm;
+  }
+  .cabecera .num {
+    font-family: var(--display);
+    font-size: 8pt;
+    letter-spacing: 0.16em;
+    color: var(--tinta-suave);
+  }
+
+  /* ---------- banda de juego ---------- */
+  .banda {
+    margin: 0 -17mm 6mm;
+    padding: 7mm 17mm 6mm;
+    color: var(--papel);
+    display: flex;
+    align-items: center;
+    gap: 6mm;
+  }
+  .banda .idx {
+    font-family: var(--display);
+    font-size: 26pt;
+    font-weight: 700;
+    line-height: 1;
+    opacity: .55;
+  }
+  .banda h2 { margin: 0; font-size: 21pt; letter-spacing: 0.03em; color: var(--papel); }
+  .banda .tag {
+    font-family: var(--display);
+    font-size: 8.5pt;
+    letter-spacing: 0.14em;
+    opacity: .85;
+    margin-top: 1mm;
+    text-transform: uppercase;
+  }
+
+  .b-verde  { background: var(--verde); }
+  .b-azul   { background: var(--azul); }
+  .b-ambar  { background: var(--ambar); }
+  .b-morado { background: var(--morado); }
+  .b-ambar h2, .b-ambar .idx, .b-ambar .tag { color: var(--tinta); }
+
+  /* ---------- ficha de datos ---------- */
+  .ficha-tecnica {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border: 0.5mm solid var(--tinta);
+    margin-bottom: 5mm;
+  }
+  .ficha-tecnica > div { padding: 3mm 4mm; }
+  .ficha-tecnica > div + div { border-left: 0.5mm solid var(--tinta); }
+  .ficha-tecnica dt {
+    font-family: var(--display);
+    font-size: 7.5pt;
+    letter-spacing: 0.14em;
+    color: var(--tinta-suave);
+    text-transform: uppercase;
+    margin-bottom: 1mm;
+  }
+  .ficha-tecnica dd {
+    margin: 0;
+    font-size: 10.5pt;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  /* ---------- pasos numerados ---------- */
+  .pasos { counter-reset: paso; display: grid; gap: 4mm; margin: 0 0 5mm; padding: 0; list-style: none; }
+  .pasos > li {
+    counter-increment: paso;
+    display: grid;
+    grid-template-columns: 11mm 1fr;
+    gap: 4mm;
+    align-items: start;
+    break-inside: avoid;
+  }
+  .pasos > li::before {
+    content: counter(paso, decimal-leading-zero);
+    font-family: var(--display);
+    font-size: 13pt;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--tinta);
+    border-top: 1mm solid var(--tinta);
+    padding-top: 1.5mm;
+  }
+  .pasos p:last-child { margin-bottom: 0; }
+  .pasos .titulo {
+    font-family: var(--display);
+    font-size: 10pt;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 1mm;
+  }
+
+  /* ---------- lista simple ---------- */
+  .lista { margin: 0 0 4mm; padding: 0; list-style: none; display: grid; gap: 2mm; }
+  .lista li {
+    display: grid;
+    grid-template-columns: 4mm 1fr;
+    gap: 3mm;
+    align-items: start;
+    break-inside: avoid;
+  }
+  .lista li::before {
+    content: "";
+    width: 2.6mm; height: 2.6mm;
+    background: var(--tinta);
+    margin-top: 1.6mm;
+  }
+
+  /* ---------- tecla / código ---------- */
+  kbd, code {
+    font-family: var(--display);
+    font-size: 9pt;
+    background: var(--papel-alt);
+    border: 0.3mm solid rgba(20,20,26,.35);
+    padding: 0.3mm 1.4mm;
+    white-space: nowrap;
+  }
+  kbd { font-weight: 700; letter-spacing: 0.04em; }
+
+  /* ---------- aviso ---------- */
+  .aviso {
+    border-left: 1.6mm solid var(--ambar);
+    background: var(--papel-alt);
+    padding: 3mm 4mm;
+    margin: 0 0 4mm;
+    break-inside: avoid;
+  }
+  .aviso.rojo { border-left-color: var(--rojo); }
+  .aviso .etiqueta { margin-bottom: 1mm; }
+  .aviso p:last-child { margin-bottom: 0; }
+
+  /* ---------- tabla ---------- */
+  table { width: 100%; border-collapse: collapse; margin: 0 0 4mm; font-size: 9.5pt; }
+  th, td { text-align: left; padding: 2.4mm 3mm; vertical-align: top; border-bottom: 0.3mm solid rgba(20,20,26,.22); }
+  thead th {
+    font-family: var(--display);
+    font-size: 7.5pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+    border-bottom: 0.6mm solid var(--tinta);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.sintoma { font-weight: 600; width: 38%; }
+
+  /* poderes: cuadrícula compacta */
+  .poderes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin: 0 0 4mm; }
+  .poder { border: 0.4mm solid var(--tinta); padding: 2.6mm 3mm; break-inside: avoid; }
+  .poder .n {
+    font-family: var(--display);
+    font-size: 9.5pt;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 0.8mm;
+  }
+  .poder .d { font-size: 9pt; line-height: 1.4; color: var(--tinta-suave); }
+
+  /* ---------- pie de página ---------- */
+  .pie {
+    margin-top: auto;
+    padding-top: 4mm;
+    border-top: 0.4mm solid rgba(20,20,26,.3);
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--display);
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    color: var(--tinta-tenue);
+    text-transform: uppercase;
+  }
+
+  .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+</style>
+
+<!-- =========================== PORTADA =========================== -->
+<section class="hoja portada">
+  <div>
+    <div class="marca">
+      <div class="ficha"></div>
+      <div>
+        <h1>GEIIA<br>ARCADE</h1>
+        <div class="sub">Manual de instalación y juego</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="lema">
+      Cuatro juegos donde <b>el control es tu cuerpo</b>: tus manos, tus gestos
+      y tu cara. Hechos con visión por computadora por el Grupo Estudiantil de
+      Ingeniería en Inteligencia Artificial.
+    </p>
+  </div>
+
+  <div>
+    <p class="etiqueta">Los juegos</p>
+    <div class="indice">
+      <div class="indice-fila">
+        <div class="barra" style="background: var(--verde)"></div>
+        <div class="nom">Neural Snake</div>
+        <div class="meta">1 jugador</div>
+        <div class="pag">Pág. 4</div>
+      </div>
+      <div class="indice-fila">
+        <div class="barra" style="background: var(--azul)"></div>
+        <div class="nom">Air Pong</div>
+        <div class="meta">2 jugadores</div>
+        <div class="pag">Pág. 5</div>
+      </div>
+      <div class="indice-fila">
+        <div class="barra" style="background: var(--ambar)"></div>
+        <div class="nom">Mente vs Máquina</div>
+        <div class="meta">1 jugador</div>
+        <div class="pag">Pág. 6</div>
+      </div>
+      <div class="indice-fila">
+        <div class="barra" style="background: var(--morado)"></div>
+        <div class="nom">Face Battle</div>
+        <div class="meta">2 a 4 jugadores</div>
+        <div class="pag">Pág. 7</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pie-portada">
+    <div>Feria Estudiantil 2026</div>
+    <div>github.com/MrBrightside0/GEIIA-ARCADE</div>
+  </div>
+</section>
+
+<!-- ========================= INSTALACIÓN ========================= -->
+<section class="hoja">
+  <div class="cabecera">
+    <h2>Instalación</h2>
+    <div class="num">Página 2</div>
+  </div>
+  <div class="regla"></div>
+
+  <p>
+    Se hace <strong>una sola vez por computadora</strong> y tarda unos minutos,
+    casi todo esperando la descarga. Después, para jugar solo abres un archivo.
+  </p>
+
+  <ol class="pasos">
+    <li>
+      <div>
+        <div class="titulo">Instala Python</div>
+        <p>
+          Descárgalo de <code>python.org/downloads</code> y ábrelo. En la primera
+          pantalla del instalador, <strong>marca la casilla que dice
+          «Add Python to PATH»</strong> — está hasta abajo y viene desmarcada.
+        </p>
+        <p>
+          Si te la saltas, el arcade no lo va a encontrar después. Es el error
+          más común, y se arregla reinstalando con la casilla marcada.
+        </p>
+      </div>
+    </li>
+
+    <li>
+      <div>
+        <div class="titulo">Baja el arcade</div>
+        <p>
+          Entra a <code>github.com/MrBrightside0/GEIIA-ARCADE</code>, presiona el
+          botón verde <strong>Code</strong> y elige <strong>Download ZIP</strong>.
+        </p>
+        <p>
+          Descomprime el ZIP en un lugar fácil, por ejemplo el Escritorio. Ojo:
+          hay que <em>descomprimirlo</em>, no funciona desde dentro del ZIP.
+        </p>
+      </div>
+    </li>
+
+    <li>
+      <div>
+        <div class="titulo">Doble clic en INSTALAR.bat</div>
+        <p>
+          Se abre una ventana negra que va a descargar todo lo que el arcade
+          necesita. Tarda entre 3 y 10 minutos según tu internet. Déjala
+          trabajar hasta que diga <strong>LISTO</strong>.
+        </p>
+      </div>
+    </li>
+
+    <li>
+      <div>
+        <div class="titulo">Doble clic en INICIAR.bat</div>
+        <p>
+          Se abre el menú del arcade. De aquí en adelante este es el único
+          archivo que necesitas abrir para jugar.
+        </p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="aviso">
+    <p class="etiqueta">Si algo sale mal</p>
+    <p>
+      Abre <strong>DIAGNOSTICO.bat</strong>. Revisa la instalación, la cámara y
+      la detección en vivo, y te dice exactamente qué falta. Los problemas más
+      comunes y su solución están en la página 8.
+    </p>
+  </div>
+
+  <div class="pie">
+    <div>GEIIA Arcade — Manual</div>
+    <div>02</div>
+  </div>
+</section>
+
+<!-- ===================== MENÚ Y MONTAJE ===================== -->
+<section class="hoja">
+  <div class="cabecera">
+    <h2>El menú y el stand</h2>
+    <div class="num">Página 3</div>
+  </div>
+  <div class="regla"></div>
+
+  <h3>Moverte por el menú</h3>
+  <table>
+    <tbody>
+      <tr><td class="sintoma"><kbd>← → ↑ ↓</kbd></td><td>Cambiar de juego</td></tr>
+      <tr><td class="sintoma"><kbd>Enter</kbd></td><td>Entrar al juego seleccionado</td></tr>
+      <tr><td class="sintoma"><kbd>M</kbd></td><td>Prender o apagar la música</td></tr>
+      <tr><td class="sintoma"><kbd>F11</kbd></td><td>Pantalla completa</td></tr>
+      <tr><td class="sintoma"><kbd>Esc</kbd></td><td>Salir del arcade</td></tr>
+    </tbody>
+  </table>
+  <p>
+    El mouse también funciona. Abajo a la derecha te dice si la cámara ya está
+    lista. Dentro de cualquier juego, <kbd>Esc</kbd> te regresa al menú y
+    <kbd>F11</kbd> pone pantalla completa.
+  </p>
+
+  <div class="regla-fina"></div>
+
+  <h3>Cómo acomodar el stand</h3>
+  <ul class="lista">
+    <li><span><strong>Luz de frente, no de espaldas.</strong> Es lo que más
+      afecta la detección. Si la ventana les queda atrás, salen en sombra y la
+      cámara batalla para verlos.</span></li>
+    <li><span><strong>Párense a un metro o metro y medio</strong> de la cámara.
+      Los juegos ignoran a propósito a quien se ve muy lejos, para que la gente
+      que pasa por detrás no le quite el control al que está jugando.</span></li>
+    <li><span><strong>Sepárense un poco entre jugadores</strong> en Face Battle.
+      Si dos caras se enciman, la IA las confunde.</span></li>
+    <li><span><strong>Cierren Zoom, Teams y Meet</strong> antes de abrir el
+      arcade. Si otra app tiene la cámara, el juego lo detecta y te avisa en
+      pantalla, pero mejor evitarlo.</span></li>
+    <li><span><strong>Al abrir cada juego, la cámara tarda unos 6 segundos</strong>
+      en calentar. El menú del juego dice «cámara lista» en verde cuando ya se
+      puede jugar. No es que esté trabado.</span></li>
+  </ul>
+
+  <div class="aviso">
+    <p class="etiqueta">Truco para juntar gente</p>
+    <p>
+      Deja <strong>Air Pong</strong> corriendo solo. La computadora juega contra
+      sí misma y se ve movimiento desde lejos; cuando alguien se para enfrente y
+      levanta la mano, entra a media partida sin tocar nada. Es el que más cola
+      hace.
+    </p>
+  </div>
+
+  <div class="pie">
+    <div>GEIIA Arcade — Manual</div>
+    <div>03</div>
+  </div>
+</section>
+
+<!-- ========================= NEURAL SNAKE ========================= -->
+<section class="hoja">
+  <div class="banda b-verde">
+    <div class="idx">01</div>
+    <div>
+      <h2>Neural Snake</h2>
+      <div class="tag">Clásico con IA rival</div>
+    </div>
+  </div>
+
+  <dl class="ficha-tecnica">
+    <div><dt>Jugadores</dt><dd>1 contra la IA</dd></div>
+    <div><dt>Control</dt><dd>Teclado (flechas)</dd></div>
+    <div><dt>Para ganar</dt><dd>8 000 puntos</dd></div>
+  </dl>
+
+  <p>
+    El Snake de siempre, pero con una serpiente rival manejada por IA que va por
+    la misma comida que tú. No necesita cámara, así que sirve de respaldo si la
+    webcam falla.
+  </p>
+
+  <h3>Cómo se juega</h3>
+  <ul class="lista">
+    <li><span>Mueve tu serpiente con las <kbd>flechas</kbd>. Cada comida vale
+      <strong>100 puntos</strong>.</span></li>
+    <li><span>Comer seguido arma <strong>combo</strong> y cada eslabón suma
+      puntos extra. Si la IA come antes que tú, te rompe la racha.</span></li>
+    <li><span>Pierdes si chocas contra un muro, contra ti misma o contra la
+      rival. Gana quien llegue primero a 8 000 puntos o quien siga viva.</span></li>
+  </ul>
+
+  <h3>Poderes que aparecen</h3>
+  <div class="poderes">
+    <div class="poder">
+      <span class="n">W — Escudo</span>
+      <span class="d">Te salva de un choque y te teletransporta a un lugar seguro.</span>
+    </div>
+    <div class="poder">
+      <span class="n">S — Velocidad</span>
+      <span class="d">Te acelera un rato. Más puntos, pero menos tiempo para reaccionar.</span>
+    </div>
+    <div class="poder">
+      <span class="n">P — Puntos</span>
+      <span class="d">Te da 500 puntos de golpe.</span>
+    </div>
+  </div>
+
+  <div class="regla-fina"></div>
+
+  <h3>Teclas</h3>
+  <table>
+    <tbody>
+      <tr><td class="sintoma"><kbd>Espacio</kbd></td><td>Empezar la partida</td></tr>
+      <tr><td class="sintoma"><kbd>→</kbd> en el menú</td><td>Cambiar el estilo visual (hay tres)</td></tr>
+      <tr><td class="sintoma"><kbd>R</kbd></td><td>Revancha al perder</td></tr>
+      <tr><td class="sintoma"><kbd>Esc</kbd></td><td>Volver al menú del arcade</td></tr>
+    </tbody>
+  </table>
+
+  <div class="pie">
+    <div>GEIIA Arcade — Neural Snake</div>
+    <div>04</div>
+  </div>
+</section>
+
+<!-- =========================== AIR PONG =========================== -->
+<section class="hoja">
+  <div class="banda b-azul">
+    <div class="idx">02</div>
+    <div>
+      <h2>Air Pong</h2>
+      <div class="tag">Tu mano es la paleta</div>
+    </div>
+  </div>
+
+  <dl class="ficha-tecnica">
+    <div><dt>Jugadores</dt><dd>2 (o 1 contra la CPU)</dd></div>
+    <div><dt>Control</dt><dd>Manos, por cámara</dd></div>
+    <div><dt>Para ganar</dt><dd>5 puntos</dd></div>
+  </dl>
+
+  <p>
+    Pong de toda la vida, pero la paleta la mueves con la mano en el aire. Dos
+    personas juegan frente a la <strong>misma cámara</strong>, paradas hombro con
+    hombro.
+  </p>
+
+  <h3>Cómo se juega</h3>
+  <ul class="lista">
+    <li><span>Párate frente a la cámara y <strong>levanta la mano abierta</strong>.
+      Súbela y bájala para mover tu paleta.</span></li>
+    <li><span>El lado se decide por <strong>dónde está tu mano en el cuadro</strong>,
+      no por cuál mano uses: si estás del lado izquierdo, mueves la paleta
+      izquierda.</span></li>
+    <li><span>Si un lado no tiene a nadie, <strong>lo juega la CPU</strong>. En
+      cuanto alguien levanta la mano de ese lado, le quita el control
+      automáticamente. Así se puede entrar a media partida.</span></li>
+    <li><span>El ángulo de rebote depende de <strong>dónde le pegues</strong>:
+      con el centro de la paleta sale derecho, con las orillas sale muy abierto.
+      Ahí está el truco para ganar.</span></li>
+  </ul>
+
+  <h3>Poderes que salen a media cancha</h3>
+  <div class="poderes">
+    <div class="poder">
+      <span class="n">Grande</span>
+      <span class="d">Tu paleta crece un buen rato.</span>
+    </div>
+    <div class="poder">
+      <span class="n">Doble</span>
+      <span class="d">Aparece una segunda bola. Se complica para los dos.</span>
+    </div>
+    <div class="poder">
+      <span class="n">Turbo</span>
+      <span class="d">Todas las bolas aceleran de golpe.</span>
+    </div>
+  </div>
+
+  <div class="aviso rojo">
+    <p class="etiqueta">Si tu paleta no responde</p>
+    <p>
+      Acércate más a la cámara. El juego <strong>ignora a propósito las manos que
+      se ven muy chicas</strong>, porque en una feria pasa gente por detrás y si
+      no, cualquiera te quitaría el control. Si te está descartando a ti, la
+      pantalla te lo dice: pasa de «levanta la mano» a
+      <strong>«acerca más la mano»</strong>.
+    </p>
+  </div>
+
+  <div class="pie">
+    <div>GEIIA Arcade — Air Pong</div>
+    <div>05</div>
+  </div>
+</section>
+
+<!-- ====================== MENTE VS MÁQUINA ====================== -->
+<section class="hoja">
+  <div class="banda b-ambar">
+    <div class="idx">03</div>
+    <div>
+      <h2>Mente vs Máquina</h2>
+      <div class="tag">Piedra, papel o tijera contra una IA que te estudia</div>
+    </div>
+  </div>
+
+  <dl class="ficha-tecnica">
+    <div><dt>Jugadores</dt><dd>1 contra la IA</dd></div>
+    <div><dt>Control</dt><dd>Gestos, por cámara</dd></div>
+    <div><dt>Para ganar</dt><dd>5 rondas</dd></div>
+  </dl>
+
+  <p>
+    Este es el que mejor explica de qué va el grupo. No es azar: la IA
+    <strong>guarda tus jugadas anteriores y busca patrones</strong> para adivinar
+    la siguiente. Y los humanos somos malísimos siendo aleatorios.
+  </p>
+
+  <h3>Cómo se juega</h3>
+  <ul class="lista">
+    <li><span>Muestra tu mano a la cámara. La pantalla te dice en vivo qué gesto
+      está viendo, para que sepas que te reconoce.</span></li>
+    <li><span>Cuenta <strong>«piedra, papel, tijera»</strong> y al grito de
+      <strong>¡YA!</strong> haz tu jugada y <strong>sostenla</strong> un segundo.</span></li>
+    <li><span>Gana quien llegue primero a 5 rondas.</span></li>
+  </ul>
+
+  <h3>Los tres gestos</h3>
+  <div class="poderes">
+    <div class="poder">
+      <span class="n">Puño cerrado</span>
+      <span class="d">Piedra</span>
+    </div>
+    <div class="poder">
+      <span class="n">Palma abierta</span>
+      <span class="d">Papel</span>
+    </div>
+    <div class="poder">
+      <span class="n">Dedos en «V»</span>
+      <span class="d">Tijera</span>
+    </div>
+  </div>
+
+  <div class="regla-fina"></div>
+
+  <h3>Lo que hay que presumir</h3>
+  <p>
+    Abajo se ve <strong>el modelo de la IA en vivo</strong>: qué tan probable
+    cree que es cada una de tus jugadas y de dónde sacó esa conclusión. La IA
+    <strong>fija su predicción antes</strong> de que juegues y la
+    <strong>revela después</strong> — si la enseñara antes, la contrarrestarías
+    y no probaría nada.
+  </p>
+  <p>
+    Al final aparece <strong>el porcentaje de veces que te adivinó</strong>.
+    Jugando al azar acertaría 33%. Contra alguien con patrones llega a 70% o
+    más. Ese número es la demostración de que aprendió algo, y es lo que hace
+    que la gente se quede a jugar otra.
+  </p>
+
+  <div class="pie">
+    <div>GEIIA Arcade — Mente vs Máquina</div>
+    <div>06</div>
+  </div>
+</section>
+
+<!-- ========================= FACE BATTLE ========================= -->
+<section class="hoja">
+  <div class="banda b-morado">
+    <div class="idx">04</div>
+    <div>
+      <h2>Face Battle</h2>
+      <div class="tag">Hasta cuatro personas haciendo caras</div>
+    </div>
+  </div>
+
+  <dl class="ficha-tecnica">
+    <div><dt>Jugadores</dt><dd>2 a 4 a la vez</dd></div>
+    <div><dt>Control</dt><dd>Tu cara, por cámara</dd></div>
+    <div><dt>Para ganar</dt><dd>6 rondas</dd></div>
+  </dl>
+
+  <p>
+    El más ruidoso de los cuatro y el que mejor foto deja. Sale una emoción en
+    pantalla, <strong>todos la imitan al mismo tiempo</strong> y la IA califica
+    quién la clavó mejor.
+  </p>
+
+  <h3>Cómo se juega</h3>
+  <ol class="pasos">
+    <li>
+      <div>
+        <div class="titulo">Júntense frente a la cámara</div>
+        <p>Hombro con hombro, mirando de frente. La pantalla va contando cuántos
+          jugadores detecta y les pone un marco de color a cada quien.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <div class="titulo">Presionen espacio cuando estén todos</div>
+        <p>Ahí se cierra la lista de jugadores. Los que lleguen después ya no
+          entran a esa partida.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <div class="titulo">Imiten la emoción y exagérenla</div>
+        <p>Tienen unos segundos por ronda. El número sobre tu cara es tu
+          calificación en vivo: si no sube, exagera más la cara.</p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="regla-fina"></div>
+
+  <div class="cols-2">
+    <div>
+      <h3>Las ocho emociones</h3>
+      <ul class="lista">
+        <li><span>Sonrisa</span></li>
+        <li><span>Sorpresa</span></li>
+        <li><span>Enojo</span></li>
+        <li><span>Beso</span></li>
+      </ul>
+    </div>
+    <div>
+      <h3>&nbsp;</h3>
+      <ul class="lista">
+        <li><span>Tristeza</span></li>
+        <li><span>Guiño</span></li>
+        <li><span>Cachetes inflados</span></li>
+        <li><span>Boca abierta</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="aviso">
+    <p class="etiqueta">Cómo califica</p>
+    <p>
+      No son reglas inventadas: el modelo mide <strong>52 músculos de la
+      cara</strong> por separado (ceja izquierda arriba, mandíbula abierta,
+      sonrisa derecha…) y cada emoción es una receta sobre esos valores. Por eso
+      reconoce una sonrisa forzada de una de verdad.
+    </p>
+  </div>
+
+  <div class="pie">
+    <div>GEIIA Arcade — Face Battle</div>
+    <div>07</div>
+  </div>
+</section>
+
+<!-- ====================== SOLUCIÓN DE PROBLEMAS ====================== -->
+<section class="hoja">
+  <div class="cabecera">
+    <h2>Si algo falla</h2>
+    <div class="num">Página 8</div>
+  </div>
+  <div class="regla"></div>
+
+  <table>
+    <thead>
+      <tr><th>Lo que ves</th><th>Qué hacer</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="sintoma">«No encontré Python», pero sí lo instalaste</td>
+        <td>Windows está usando su versión falsa de la Microsoft Store. Ve a
+          <strong>Configuración → Aplicaciones → Configuración avanzada de
+          aplicaciones → Alias de ejecución</strong> y apaga
+          <code>python.exe</code>. O reinstala Python marcando
+          «Add Python to PATH».</td>
+      </tr>
+      <tr>
+        <td class="sintoma">«No module named…»</td>
+        <td>Faltó instalar. Abre <strong>INSTALAR.bat</strong> otra vez y déjalo
+          terminar hasta que diga LISTO.</td>
+      </tr>
+      <tr>
+        <td class="sintoma">Dice que otra aplicación usa la cámara</td>
+        <td>Cierra Zoom, Teams, Meet o el juego anterior que haya quedado
+          abierto. Solo una app a la vez puede usar la webcam.</td>
+      </tr>
+      <tr>
+        <td class="sintoma">La cámara no te ve o te ve a ratos</td>
+        <td>Ponte luz de frente y acércate a un metro. Si sigue, abre
+          <strong>DIAGNOSTICO.bat</strong>: mide tu mano y tu cara y te dice si
+          es la luz, la distancia o la cámara.</td>
+      </tr>
+      <tr>
+        <td class="sintoma">Se siente lento o entrecortado</td>
+        <td>Cierra las demás aplicaciones y conecta la laptop a la corriente.
+          En batería, Windows baja el rendimiento y la cámara entrega menos
+          cuadros.</td>
+      </tr>
+      <tr>
+        <td class="sintoma">Windows avisa que «protegió tu PC»</td>
+        <td><strong>Más información → Ejecutar de todas formas</strong>. Sale
+          porque los archivos no están firmados, no porque tengan algo malo.</td>
+      </tr>
+      <tr>
+        <td class="sintoma">Un juego se cerró y no vuelve</td>
+        <td>Cierra todo y abre <strong>INICIAR.bat</strong> de nuevo. La ventana
+          negra que queda detrás del arcade es normal: ahí aparecen los errores
+          si algo pasa.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="regla-fina"></div>
+
+  <div class="aviso">
+    <p class="etiqueta">La herramienta que resuelve casi todo</p>
+    <p>
+      <strong>DIAGNOSTICO.bat</strong> revisa Python, las librerías, los modelos
+      de IA, la cámara y la detección en vivo, y termina con una lista de qué
+      arreglar. Si vas a pedir ayuda, corre eso primero y manda lo que aparezca:
+      con eso se sabe qué pasó sin adivinar.
+    </p>
+  </div>
+
+  <div class="pie">
+    <div>GEIIA Arcade — Manual</div>
+    <div>08</div>
+  </div>
+</section>
+
+<!-- ====================== REFERENCIA RÁPIDA ====================== -->
+<section class="hoja">
+  <div class="cabecera">
+    <h2>Referencia rápida</h2>
+    <div class="num">Página 9</div>
+  </div>
+  <div class="regla"></div>
+
+  <p>
+    Esta página está pensada para imprimirse y pegarse junto a la computadora,
+    para no tener que explicar los controles cada vez.
+  </p>
+
+  <h3>Controles de cada juego</h3>
+  <table>
+    <thead>
+      <tr><th>Juego</th><th>Cómo se controla</th><th>Para ganar</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="sintoma">Neural Snake</td>
+        <td><kbd>flechas</kbd> del teclado</td>
+        <td>8 000 puntos</td>
+      </tr>
+      <tr>
+        <td class="sintoma">Air Pong</td>
+        <td>Mano abierta, arriba y abajo</td>
+        <td>5 puntos</td>
+      </tr>
+      <tr>
+        <td class="sintoma">Mente vs Máquina</td>
+        <td>Puño, palma o «V» al grito de ¡YA!</td>
+        <td>5 rondas</td>
+      </tr>
+      <tr>
+        <td class="sintoma">Face Battle</td>
+        <td>Imitar la emoción con la cara</td>
+        <td>Llevarse más de las 6 rondas</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="regla-fina"></div>
+
+  <h3>Teclas que sirven en todos lados</h3>
+  <table>
+    <tbody>
+      <tr><td class="sintoma"><kbd>Espacio</kbd></td><td>Empezar la partida</td></tr>
+      <tr><td class="sintoma"><kbd>Esc</kbd></td><td>Volver al menú, o salir del arcade</td></tr>
+      <tr><td class="sintoma"><kbd>F11</kbd></td><td>Pantalla completa</td></tr>
+      <tr><td class="sintoma"><kbd>M</kbd></td><td>Música del menú, prender o apagar</td></tr>
+    </tbody>
+  </table>
+
+  <div class="regla-fina"></div>
+
+  <h3>Lo que hay dentro de la carpeta</h3>
+  <table>
+    <tbody>
+      <tr><td class="sintoma"><code>INICIAR.bat</code></td><td>Abre el arcade. Es el de todos los días.</td></tr>
+      <tr><td class="sintoma"><code>INSTALAR.bat</code></td><td>Solo la primera vez en cada computadora.</td></tr>
+      <tr><td class="sintoma"><code>DIAGNOSTICO.bat</code></td><td>Revisa qué está fallando.</td></tr>
+      <tr><td class="sintoma"><code>models/</code></td><td>Los modelos de IA. <strong>No borrar</strong>: sin ellos no funciona la cámara.</td></tr>
+      <tr><td class="sintoma"><code>README.md</code></td><td>Detalles técnicos, por si le quieren meter mano al código.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="pie">
+    <div>GEIIA Arcade — Grupo Estudiantil de Ingeniería en Inteligencia Artificial</div>
+    <div>09</div>
+  </div>
+</section>
