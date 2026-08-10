@@ -1,84 +1,159 @@
-# GEIIA Arcade: Next-Gen Python Gaming
+# GEIIA ARCADE
 
-Bienvenido a GEIIA Arcade, una colección de videojuegos arcade clásicos reinventados con Inteligencia Artificial y Visión por Computadora. Olvida el teclado: aquí tu cuerpo es el control.
-
----
-
-## JUEGOS INCLUIDOS
-
-1. Neon Racer: Overdrive (Carreras Cyberpunk)
-   - Control: Mueve tu cabeza de lado a lado para conducir (Head Tracking).
-   - Disparo: ¡Parpadea (o cierra los ojos fuerte) para disparar láseres!
-   - Mecánica: Esquiva muros, destruye drones enemigos y recoge power-ups.
-
-2. Human Piano: Neon Arcade (Ritmo)
-   - Control: Usa tus manos frente a la cámara (Hand Tracking).
-   - Mecánica: Toca las notas musicales virtuales que caen en la pantalla antes de que desaparezcan.
-   - Bonus: Gana el "Pase VIP GEIIA" si obtienes una puntuación alta.
-
-3. Neural Snake (Clásico)
-   - Control: Gestos de mano o cabeza (según configuración).
-   - IA: Posibilidad de ver a una red neuronal jugar sola.
-
-4. Flappy Scream (Voz)
-   - Control: El volumen de tu voz controla la altura del personaje.
-   - Mecánica: ¡Grita para volar, calla para caer!
+Colección de juegos arcade controlados con **visión por computadora**: aquí el
+control es tu cuerpo. Hecho por el Grupo Estudiantil de Ingeniería en
+Inteligencia Artificial para la Feria Estudiantil 2026.
 
 ---
 
-## INSTALACION RAPIDA
+## LOS JUEGOS
 
-Sigue estos pasos para ejecutar el arcade en cualquier computadora (Windows/Mac/Linux).
+| Juego | Jugadores | Control | Qué demuestra |
+|---|---|---|---|
+| 🐍 **Neural Snake** | 1 vs IA | Teclado (flechas) | Búsqueda voraz con evasión |
+| 🏓 **Air Pong** | 2 (1v1) | Manos, cámara | Hand landmarks en tiempo real |
+| ✊ **Mente vs Máquina** | 1 vs IA | Gestos, cámara | Clasificación de gestos + cadena de Markov |
+| 😱 **Face Battle** | 2 a 4 | Cara, cámara | 52 blendshapes faciales |
 
-Requisitos Previos:
-- Python 3.10 o superior.
-- Webcam funcional.
-- Micrófono.
+### 🏓 Air Pong
+Pong donde tu mano *es* la paleta. Se asigna por **posición**: quien tenga la
+mano del lado izquierdo del cuadro controla la paleta izquierda. Si un lado no
+tiene mano, lo juega la CPU — así una persona puede jugar sola y cuando llega
+un amigo **solo levanta la mano y entra**, sin tocar nada.
 
-PASOS:
+Power-ups: `GRANDE` (paleta más larga), `DOBLE` (bola extra), `TURBO`.
 
-1. Clonar el repositorio:
-   git clone https://github.com/TU_USUARIO/GEIIA-Arcade.git
-   cd GEIIA-Arcade
+### ✊ Mente vs Máquina
+Piedra, papel o tijera contra una IA que **aprende tus patrones**. Usa una
+cadena de Markov de orden 2 (mira tus últimas 2 jugadas) con respaldo a
+orden 1 y a frecuencias simples.
 
-2. Instalar dependencias:
-   pip install -r requirements.txt
+Lo que engancha es el marcador: la IA muestra **qué porcentaje de tus jugadas
+adivinó**. Contra alguien con patrones llega a 70-90%; el azar puro daría 33%.
+La IA fija su predicción *antes* de que juegues y la revela *después* — si la
+enseñara antes, la contrarrestarías y no probaría nada.
 
-3. Ejecutar el Menú Principal:
-   python main_menu.py
+> Verificado en pruebas: contra un patrón cíclico acierta **92%**; contra
+> entradas verdaderamente aleatorias baja a **34%**, o sea no hace trampa.
+
+### 😱 Face Battle
+Hasta 4 personas frente a la misma cámara. Sale una emoción y todos la imitan;
+la IA califica quién la clavó. La cámara va de fondo a pantalla completa con
+un aro de color por jugador.
+
+Las 8 emociones (sonrisa, sorpresa, enojo, beso, tristeza, guiño, cachetes,
+boca abierta) se puntúan con **blendshapes**: coeficientes 0..1 de músculos
+faciales que devuelve el modelo. No son reglas geométricas hechas a mano.
+
+**Afinar las recetas:** dentro del juego presiona `F3` para ver en vivo qué
+blendshapes se están activando más. Con eso puedes ajustar los pesos en la
+lista `EMOCIONES` de `game_faces.py`.
 
 ---
 
-## SOLUCION DE PROBLEMAS
+## INSTALACIÓN
 
-1. El juego se cierra al abrir la cámara:
-   - Asegúrate de que ninguna otra app (Zoom, Teams, Meet) esté usando la cámara.
-   - Verifica que tienes instalada la versión correcta de MediaPipe.
+### Rápida (Windows)
+1. Instala Python 3.10 o superior desde [python.org](https://www.python.org/downloads/)
+   — **marca la casilla "Add Python to PATH"**.
+2. Doble clic en **`INSTALAR.bat`** (tarda unos minutos).
+3. Doble clic en **`INICIAR.bat`** para jugar.
 
-2. No se escucha el audio:
-   - El sistema ajusta automáticamente entre Mono y Estéreo. Si falla, revisa la configuración de altavoces de Windows.
+### Manual
+```bash
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe main_menu.py
+```
 
-3. Error "Module not found":
-   - Ejecuta "pip install -r requirements.txt" nuevamente.
+Los modelos de IA ya vienen en `models/` (~20 MB), así que **no necesitas
+internet el día de la feria**.
+
+### ¿Algo no jala?
+```bash
+python DIAGNOSTICO.py
+```
+Revisa dependencias, modelos, cámara y detección en vivo, y te dice qué falta.
 
 ---
 
-## ESTRUCTURA DEL PROYECTO
+## MONTAJE DEL STAND
 
-GEIIA-Arcade/
+- **Luz de frente.** Es lo que más afecta la detección. Que la luz les dé en
+  la cara, no a contraluz de una ventana.
+- **Distancia:** 1 a 1.5 m de la cámara. Para Face Battle con 4 personas hay
+  que echarse para atrás para que quepan todos.
+- **Sepárense un poco** entre jugadores: si dos caras se enciman, la IA las
+  confunde.
+- **Cierra Zoom, Teams y Meet** antes de abrir el arcade, o se pelean por la
+  cámara.
+- La cámara tarda **unos 6 segundos** en calentar al abrir cada juego. El menú
+  del juego dice *"cámara lista"* en verde cuando ya se puede jugar.
+- `F11` pone cualquier juego en pantalla completa.
+
+---
+
+## ESTRUCTURA
+
+```
+GEIIA-ARCADE/
+├── INICIAR.bat          <- doble clic para jugar
+├── INSTALAR.bat         <- doble clic la primera vez
+├── DIAGNOSTICO.py       <- revisa qué está fallando
 │
-├── main_menu.py       # Lanzador principal
-├── game_kombat.py     # Neon Racer (Facial Control)
-├── game_piano.py      # Human Piano (Hand Tracking)
-├── game_snake.py      # Snake IA
-├── game_flappy.py     # Flappy Voice
+├── main_menu.py         Menú principal (flechas + Enter, o mouse)
+├── geiia_core.py        Núcleo compartido: cámara, visión, audio, efectos
 │
-├── musica.mp3         # Música de fondo (opcional)
-├── requirements.txt   # Lista de librerías necesarias
-└── README.md          # Este archivo
+├── game_snake.py        🐍 Neural Snake
+├── game_pong.py         🏓 Air Pong
+├── game_duelo.py        ✊ Mente vs Máquina
+├── game_faces.py        😱 Face Battle
+│
+├── models/              Modelos de MediaPipe (necesarios, no borrar)
+├── sounds/snake/        Efectos del Snake
+└── requirements.txt
+```
+
+Los tres juegos de cámara comparten `geiia_core.py`, que se encarga de la
+captura, la inferencia en hilos aparte, la síntesis de sonido y los efectos
+visuales. Si quieres agregar un juego nuevo, ahí está toda la plomería.
 
 ---
 
-CREDITOS
-Desarrollado por el equipo de GEIIA (Grupo Estudiantil de Inteligencia Artificial).
-Tecnologías: Python, Pygame, OpenCV, Google MediaPipe.
+## NOTAS TÉCNICAS
+
+Cosas que costó trabajo descubrir y conviene no volver a romper:
+
+**MediaPipe 1.x eliminó la API `mp.solutions.*`.** Los juegos usan la Tasks
+API nueva (`mediapipe.tasks.python.vision`) con los modelos `.task` de
+`models/`. Si copias código viejo de internet que use `mp.solutions.hands`,
+no va a funcionar con esta versión.
+
+**El backend de la cámara importa muchísimo.** Medido en una laptop de
+prueba, con la misma webcam:
+
+| Backend | FPS reales |
+|---|---|
+| `cv2.CAP_DSHOW` (DirectShow) | 16.7 |
+| `cv2.CAP_MSMF` (Media Foundation) | **30.5** |
+
+El tracking no puede ir más rápido que la captura, así que `geiia_core.py`
+prueba **MSMF primero** y deja DirectShow de respaldo. Esto duplicó los FPS
+de tracking (17 → 35). El costo es que MSMF tarda ~6 s en inicializar, pero
+eso queda escondido detrás de la pantalla de menú.
+
+**La inferencia no es el cuello de botella.** Medido: manos 20.6 ms/cuadro
+(48 FPS), caras con blendshapes 3.1 ms/cuadro (326 FPS). Si el tracking se
+siente lento, el problema es la cámara, no la IA.
+
+**Captura e inferencia van en hilos separados.** Si corren en serie, el ciclo
+tarda lectura + inferencia y se pierde uno de cada dos cuadros de la cámara.
+
+---
+
+## CRÉDITOS
+
+Desarrollado por el **Grupo Estudiantil de Ingeniería en Inteligencia
+Artificial (GEIIA)**.
+
+Tecnologías: Python · Pygame · OpenCV · Google MediaPipe Tasks · CustomTkinter

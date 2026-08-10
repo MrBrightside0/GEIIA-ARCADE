@@ -6,9 +6,13 @@ import math
 import subprocess
 from collections import deque
 
+import geiia_core as core
+
 # ==================== CONFIGURACIÓN ====================
-WIDTH, HEIGHT = 900, 760
-UI_HEIGHT = 60
+# Mismo tamaño de ventana que los otros tres juegos: que el arcade completo
+# se vea parejo importa más que los 220 px extra de cancha.
+WIDTH, HEIGHT = 1120, 760
+UI_HEIGHT = 106  # barra GEIIA (45) + marcador propio del juego
 GRID_SIZE = 20
 FPS_DRAW = 60
 
@@ -82,9 +86,17 @@ class SnakeGame:
         pygame.display.set_caption("GEIIA NEURAL SNAKE - TOURNAMENT EDITION")
         self.clock = pygame.time.Clock()
         
-        self.font_big = pygame.font.SysFont("Impact", 70)
-        self.font_ui = pygame.font.SysFont("Arial", 22, bold=True)
-        self.font_float = pygame.font.SysFont("Arial Black", 16)
+        # Mismas fuentes pixeladas que el resto del arcade
+        self.fonts = {
+            "xl": core.PixelFont(core._font(24, bold=True), 3),
+            "lg": core.PixelFont(core._font(16, bold=True), 3),
+            "md": core.PixelFont(core._font(15, bold=True), 2),
+            "sm": core.PixelFont(core._font(11, bold=True), 2),
+            "xs": core.PixelFont(core._font(8, bold=True), 2),
+        }
+        self.font_big = self.fonts["xl"]
+        self.font_ui = self.fonts["sm"]
+        self.font_float = self.fonts["xs"]
         
         self.theme_idx = 0
         self.state = "MENU"
@@ -121,12 +133,18 @@ class SnakeGame:
             except: pass
 
     def return_to_main(self):
-        """Cierra el juego actual y regresa al menú principal"""
+        """Cierra el juego y regresa al menú principal.
+
+        Si el menú fue quien nos lanzó, él ya está esperando a que salgamos y
+        se muestra solo: abrir otro proceso apilaría menús duplicados.
+        """
         pygame.quit()
-        try:
-            subprocess.Popen([sys.executable, "main_menu.py"])
-        except Exception as e:
-            print(f"Error launching menu: {e}")
+        if not os.environ.get("GEIIA_FROM_MENU"):
+            try:
+                base = os.path.dirname(os.path.abspath(__file__))
+                subprocess.Popen([sys.executable, os.path.join(base, "main_menu.py")])
+            except Exception as e:
+                print(f"Error launching menu: {e}")
         sys.exit()
 
     def reset_game_vars(self):
@@ -420,33 +438,34 @@ class SnakeGame:
             for txt in self.floating_texts: txt.update(); txt.draw(canvas)
             self.floating_texts = [txt for txt in self.floating_texts if txt.life > 0]
 
-            ui_bar = pygame.Surface((WIDTH, UI_HEIGHT))
-            ui_bar.fill((10, 10, 10))
-            pygame.draw.line(ui_bar, (100, 100, 100), (0, UI_HEIGHT-1), (WIDTH, UI_HEIGHT-1))
-            canvas.blit(ui_bar, (0,0))
-            
-            p1_txt = self.font_ui.render(f"P1: {self.player['score']}", True, t["p1"])
-            ai_txt = self.font_ui.render(f"AI: {self.ai['score']}", True, t["ai"])
-            wins_txt = self.font_ui.render(f"WINS: {self.score_p1} - {self.score_ai}", True, (200, 200, 200))
-            canvas.blit(p1_txt, (20, 15)); canvas.blit(ai_txt, (WIDTH-150, 15)); canvas.blit(wins_txt, (WIDTH//2 - wins_txt.get_width()//2, 15))
+            top = core.snap(46)
+            core.block(canvas, core.C_BG, (0, top, WIDTH, UI_HEIGHT - top))
+            core.block(canvas, core.C_GRID, (0, UI_HEIGHT - core.PIXEL, WIDTH, core.PIXEL))
+            cy = top + (UI_HEIGHT - top) // 2
 
+            core.text_at(canvas, self.font_ui, f"P1 {self.player['score']}", t["p1"], 34, cy, "midleft")
+            core.text_at(canvas, self.font_ui, f"IA {self.ai['score']}", t["ai"], WIDTH - 34, cy, "midright")
+            core.text_at(canvas, self.font_ui, f"{self.score_p1} - {self.score_ai}",
+                         core.C_INK, WIDTH // 2, cy)
+            core.text_at(canvas, self.font_float, "RONDAS", core.C_DIM, WIDTH // 2, top + 14)
+
+            estados = []
             if self.player["shield"]:
-                s_txt = self.font_float.render("SHIELD ON", True, (200, 200, 255))
-                canvas.blit(s_txt, (20, 70))
+                estados.append(("ESCUDO", core.C_AZUL))
             if self.player["speed_boost"] > 0:
-                sp_txt = self.font_float.render("SPEED UP", True, (100, 255, 255))
-                canvas.blit(sp_txt, (20, 90))
+                estados.append(("TURBO", core.C_AMBAR))
+            for i, (txt, col) in enumerate(estados):
+                core.text_at(canvas, self.font_float, txt, col, 34, UI_HEIGHT + 18 + i * 22, "midleft")
 
         if self.state == "MENU":
             overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 180)); canvas.blit(overlay, (0, 0))
+            # Sin latido de escala: deformar texto pixelado lo despedaza.
             self.menu_anim += 0.05
-            sc = 1.0 + math.sin(self.menu_anim)*0.03
             title = self.font_big.render("NEURAL SNAKE", True, t["p1"])
-            w, h = title.get_size()
-            title = pygame.transform.scale(title, (int(w*sc), int(h*sc)))
             sub = self.font_ui.render("TOURNAMENT EDITION", True, (200, 200, 200))
-            start = self.font_ui.render("[ESPACIO] START", True, (255, 255, 255))
+            parpadeo = (pygame.time.get_ticks() // 450) % 2 == 0
+            start = self.font_ui.render("> ESPACIO PARA JUGAR <" if parpadeo else "", True, core.C_INK)
             skin = self.font_ui.render(f"< ESTILO: {t['name']} >", True, t["food"])
             
             global_stat = self.font_ui.render(f"GOAL: {WIN_SCORE} PTS", True, (255, 215, 0))
@@ -482,16 +501,10 @@ class SnakeGame:
             canvas.blit(t_reason, (WIDTH//2 - t_reason.get_width()//2, HEIGHT//2))
             canvas.blit(t_r, (WIDTH//2 - t_r.get_width()//2, HEIGHT//2 + 80))
 
-        scan = self.create_scanlines()
-        canvas.blit(scan, (0,0))
+        core.draw_chrome(canvas, self.fonts, "NEURAL SNAKE",
+                         "ESC MENU    ESPACIO JUGAR    F11 PANTALLA")
         self.screen.blit(canvas, (ox, oy))
         pygame.display.flip()
-
-    def create_scanlines(self):
-        surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        for y in range(0, HEIGHT, 3):
-            pygame.draw.line(surf, (0, 0, 0, 40), (0, y), (WIDTH, y))
-        return surf
 
     def run(self):
         while True:

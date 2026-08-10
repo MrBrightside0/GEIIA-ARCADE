@@ -1,192 +1,352 @@
-import customtkinter as ctk
+"""
+GEIIA ARCADE - Menu principal
+
+Estilo: arcade de verdad. Paleta corta, bloques planos, tipografia de
+bloque, bordes duros. Nada de degradados, brillos ni emojis de adorno.
+
+Navegacion pensada para que un visitante lo use SIN que nadie le explique:
+  - Flechas para moverse, ENTER para jugar, ESC para salir.
+  - El mouse tambien funciona (hover selecciona, click juega).
+  - Cada tarjeta dice cuantos jugadores son y con que se controla.
+
+El menu lanza el juego, se esconde, y reaparece cuando el juego termina.
+"""
+
+import os
 import subprocess
 import sys
-import os
-import math
 import threading
 
-ctk.set_appearance_mode("Dark")
-ctk.set_default_color_theme("dark-blue")
+import customtkinter as ctk
 
-COLOR_BG = "#050510"
-COLOR_CARD = "#13131F"
-COLOR_ACCENT = "#00F0FF"
-COLOR_TEXT = "#FFFFFF"
-COLOR_TEXT_DIM = "#888899"
+ctk.set_appearance_mode("Dark")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# ==================== PALETA ====================
+# Las mismas cinco tintas que usan los juegos (ver geiia_core.py).
+C_BG = "#0E0E14"
+C_PANEL = "#1A1A24"
+C_LINE = "#22222E"
+C_INK = "#EEECE0"
+C_DIM = "#707084"
+
+C_AMBAR = "#FFC11A"
+C_ROJO = "#E4474C"
+C_VERDE = "#4AD082"
+C_AZUL = "#4E96F6"
+C_MORA = "#B074E8"
+
+FUENTE = "Consolas"
+
+# ==================== CATALOGO ====================
+GAMES = [
+    {
+        "num": "01",
+        "name": "NEURAL SNAKE",
+        "hook": "Duelo contra una serpiente con IA.\nCombos, escudos y warps.",
+        "players": "1 JUGADOR / VS IA",
+        "control": "TECLADO",
+        "script": "game_snake.py",
+        "accent": C_VERDE,
+    },
+    {
+        "num": "02",
+        "name": "AIR PONG",
+        "hook": "Pong en el aire: tu mano es la paleta.\nRétate con quien sea.",
+        "players": "2 JUGADORES / 1v1",
+        "control": "MANOS / CAMARA",
+        "script": "game_pong.py",
+        "accent": C_AZUL,
+    },
+    {
+        "num": "03",
+        "name": "MENTE VS MAQUINA",
+        "hook": "Piedra, papel o tijera contra una IA\nque aprende tus patrones.",
+        "players": "1 JUGADOR / VS IA",
+        "control": "GESTOS / CAMARA",
+        "script": "game_duelo.py",
+        "accent": C_AMBAR,
+    },
+    {
+        "num": "04",
+        "name": "FACE BATTLE",
+        "hook": "Imita la emoción en pantalla.\nGana quien la clave primero.",
+        "players": "2 A 4 JUGADORES",
+        "control": "CARA / CAMARA",
+        "script": "game_faces.py",
+        "accent": C_MORA,
+    },
+]
+
+
+def check_camera():
+    """Revisa si hay webcam. Corre en un hilo para no congelar la ventana."""
+    try:
+        import cv2
+    except ImportError:
+        return False
+    cap = None
+    for backend in (cv2.CAP_MSMF, cv2.CAP_DSHOW, cv2.CAP_ANY):
+        intento = cv2.VideoCapture(0, backend)
+        if intento.isOpened() and intento.read()[0]:
+            cap = intento
+            break
+        intento.release()
+    if cap is None:
+        return False
+    cap.release()
+    return True
+
+
 class GameCard(ctk.CTkFrame):
-    def __init__(self, master, game_data, launch_callback, **kwargs):
-        super().__init__(master, fg_color=COLOR_CARD, corner_radius=15, border_width=1, border_color="#2A2A35", **kwargs)
-        
-        self.script_path = game_data["script"]
-        self.game_name = game_data["name"]
-        self.callback = launch_callback
-        
-        full_path = os.path.join(BASE_DIR, self.script_path)
-        is_available = os.path.exists(full_path)
-        
-        self.grid_columnconfigure(0, weight=1)
-        
-        status_color = "#00FF66" if is_available else "#FF3333"
-        self.status_indicator = ctk.CTkFrame(self, width=10, height=10, corner_radius=5, fg_color=status_color)
-        self.status_indicator.place(relx=0.92, rely=0.08, anchor="center")
-
-        icon = game_data["name"].split()[0] if " " in game_data["name"] else "🎮"
-        title_text = " ".join(game_data["name"].split()[1:]) if " " in game_data["name"] else game_data["name"]
-
-        self.icon_label = ctk.CTkLabel(self, text=icon, font=("Arial", 40))
-        self.icon_label.pack(pady=(20, 5))
-
-        self.title_label = ctk.CTkLabel(self, text=title_text, font=("Roboto", 18, "bold"), text_color=COLOR_TEXT)
-        self.title_label.pack(pady=0)
-
-        self.desc_label = ctk.CTkLabel(self, text=game_data["desc"], font=("Roboto", 12), text_color=COLOR_TEXT_DIM, wraplength=180)
-        self.desc_label.pack(pady=(5, 15), padx=10)
-
-        btn_color = game_data["color"]
-        btn_hover = game_data["hover"]
-        
-        state = "normal" if is_available else "disabled"
-        btn_text = "JUGAR AHORA" if is_available else "NO INSTALADO"
-        if not is_available: 
-            btn_color = "#333333"
-            btn_hover = "#333333"
-
-        self.play_btn = ctk.CTkButton(
-            self, 
-            text=btn_text, 
-            font=("Arial", 12, "bold"),
-            height=35,
-            corner_radius=20,
-            fg_color=btn_color,
-            hover_color=btn_hover,
-            state=state,
-            command=self.launch
+    def __init__(self, master, game, index, on_select, on_launch):
+        super().__init__(
+            master,
+            fg_color=C_PANEL,
+            corner_radius=0,
+            border_width=3,
+            border_color=C_LINE,
         )
-        self.play_btn.pack(pady=(0, 20), padx=20, fill="x")
+        self.game = game
+        self.index = index
+        self.on_select = on_select
+        self.on_launch = on_launch
+        self.selected = False
+        self.available = os.path.exists(os.path.join(BASE_DIR, game["script"]))
 
-        self.bind("<Enter>", self.on_enter)
-        self.bind("<Leave>", self.on_leave)
-        for widget in self.winfo_children():
-            if widget != self.play_btn:
-                widget.bind("<Enter>", self.on_enter)
-                widget.bind("<Leave>", self.on_leave)
+        cuerpo = ctk.CTkFrame(self, fg_color="transparent")
+        cuerpo.pack(fill="both", expand=True, padx=24, pady=22)
 
-    def launch(self):
-        self.callback(self.script_path)
+        fila = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        fila.pack(fill="x")
 
-    def on_enter(self, event):
-        self.configure(border_color=COLOR_ACCENT, fg_color="#1A1A2F")
+        self.num_lbl = ctk.CTkLabel(
+            fila, text=game["num"], font=(FUENTE, 40, "bold"), text_color=C_LINE
+        )
+        self.num_lbl.pack(side="left", padx=(0, 16))
 
-    def on_leave(self, event):
-        self.configure(border_color="#2A2A35", fg_color=COLOR_CARD)
+        titulos = ctk.CTkFrame(fila, fg_color="transparent")
+        titulos.pack(side="left", fill="x", expand=True)
+
+        self.title_lbl = ctk.CTkLabel(
+            titulos, text=game["name"], font=(FUENTE, 24, "bold"),
+            text_color=game["accent"], anchor="w",
+        )
+        self.title_lbl.pack(fill="x")
+
+        ctk.CTkLabel(
+            titulos, text=game["players"], font=(FUENTE, 13),
+            text_color=C_DIM, anchor="w",
+        ).pack(fill="x")
+
+        ctk.CTkLabel(
+            cuerpo, text=game["hook"], font=(FUENTE, 14),
+            text_color=C_INK, justify="left", anchor="w",
+        ).pack(fill="x", pady=(16, 0))
+
+        pie = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        pie.pack(fill="x", side="bottom")
+
+        ctk.CTkLabel(
+            pie, text=game["control"], font=(FUENTE, 12, "bold"),
+            text_color=C_DIM, anchor="w",
+        ).pack(side="left")
+
+        self.play_lbl = ctk.CTkLabel(
+            pie,
+            text="ENTER >" if self.available else "FALTA ARCHIVO",
+            font=(FUENTE, 13, "bold"),
+            text_color=C_LINE if self.available else C_ROJO,
+        )
+        self.play_lbl.pack(side="right")
+
+        for w in [self] + self._descendants():
+            w.bind("<Enter>", lambda e: self.on_select(self.index))
+            w.bind("<Button-1>", lambda e: self.on_launch(self.index))
+
+    def _descendants(self):
+        out, pila = [], list(self.winfo_children())
+        while pila:
+            w = pila.pop()
+            out.append(w)
+            pila.extend(w.winfo_children())
+        return out
+
+    def set_selected(self, value):
+        if value == self.selected:
+            return
+        self.selected = value
+        acento = self.game["accent"]
+        self.configure(border_color=acento if value else C_LINE)
+        self.num_lbl.configure(text_color=acento if value else C_LINE)
+        if self.available:
+            self.play_lbl.configure(text_color=acento if value else C_LINE)
 
 
 class ArcadeMenu(ctk.CTk):
     def __init__(self):
         super().__init__()
+        self.title("GEIIA ARCADE")
+        self.configure(fg_color=C_BG)
+        self.geometry("1180x820")
+        self.minsize(1040, 760)
+        self.is_fullscreen = False
 
-        self.title("GEIIA ARCADE HUB 2026")
-        self.geometry("1000x800")
-        self.minsize(900, 700)
-        
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1) 
+        self.selected = 0
+        self.cards = []
+        self.launching = False
 
-        self.header = ctk.CTkFrame(self, fg_color="#0F0F15", height=100, corner_radius=0)
-        self.header.grid(row=0, column=0, sticky="ew")
-        self.header.grid_propagate(False)
+        self._build_header()
+        self._build_grid()
+        self._build_footer()
 
-        self.title_label = ctk.CTkLabel(
-            self.header, 
-            text="⚡ GEIIA STUDENT FAIR ⚡", 
-            font=("Impact", 36), 
-            text_color=COLOR_ACCENT
+        for tecla, delta in (("<Left>", -1), ("<Right>", 1), ("<Up>", -2), ("<Down>", 2)):
+            self.bind(tecla, lambda e, d=delta: self._move(d))
+        self.bind("<Return>", lambda e: self._launch(self.selected))
+        self.bind("<space>", lambda e: self._launch(self.selected))
+        self.bind("<Escape>", lambda e: self._on_escape())
+        self.bind("<F11>", lambda e: self._toggle_fullscreen())
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+
+        self._refresh_selection()
+        self.focus_force()
+        threading.Thread(target=self._camera_probe, daemon=True).start()
+        self._blink = 0
+        self._animate()
+
+    def _build_header(self):
+        header = ctk.CTkFrame(self, fg_color=C_PANEL, corner_radius=0, height=104)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+
+        izq = ctk.CTkFrame(header, fg_color="transparent")
+        izq.pack(side="left", padx=40, pady=22)
+
+        marca = ctk.CTkFrame(izq, fg_color="transparent")
+        marca.pack(anchor="w")
+        ctk.CTkFrame(marca, fg_color=C_AMBAR, corner_radius=0, width=14, height=34).pack(
+            side="left", padx=(0, 12)
         )
-        self.title_label.place(relx=0.5, rely=0.4, anchor="center")
-        
-        self.subtitle = ctk.CTkLabel(
-            self.header, 
-            text="AI ENGINEERING CHALLENGE 2026", 
-            font=("Roboto", 14, "bold"), 
-            text_color=COLOR_TEXT_DIM
+        ctk.CTkLabel(
+            marca, text="GEIIA ARCADE", font=(FUENTE, 32, "bold"), text_color=C_INK
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            izq,
+            text="GRUPO ESTUDIANTIL DE INGENIERIA EN INTELIGENCIA ARTIFICIAL",
+            font=(FUENTE, 11),
+            text_color=C_DIM,
+        ).pack(anchor="w", pady=(6, 0))
+
+        ctk.CTkLabel(
+            header, text="4 JUEGOS", font=(FUENTE, 18, "bold"), text_color=C_DIM
+        ).pack(side="right", padx=40)
+
+        ctk.CTkFrame(self, fg_color=C_LINE, corner_radius=0, height=3).pack(fill="x")
+
+    def _build_grid(self):
+        body = ctk.CTkFrame(self, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=40, pady=32)
+        body.grid_columnconfigure((0, 1), weight=1, uniform="c")
+        body.grid_rowconfigure((0, 1), weight=1, uniform="r")
+
+        for i, game in enumerate(GAMES):
+            card = GameCard(body, game, i, self._select, self._launch)
+            card.grid(row=i // 2, column=i % 2, padx=10, pady=10, sticky="nsew")
+            self.cards.append(card)
+
+    def _build_footer(self):
+        ctk.CTkFrame(self, fg_color=C_LINE, corner_radius=0, height=3).pack(fill="x")
+        footer = ctk.CTkFrame(self, fg_color=C_PANEL, corner_radius=0, height=56)
+        footer.pack(fill="x")
+        footer.pack_propagate(False)
+
+        self.hint_lbl = ctk.CTkLabel(
+            footer,
+            text="FLECHAS MOVER    ENTER JUGAR    F11 PANTALLA    ESC SALIR",
+            font=(FUENTE, 13, "bold"),
+            text_color=C_DIM,
         )
-        self.subtitle.place(relx=0.5, rely=0.75, anchor="center")
+        self.hint_lbl.pack(side="left", padx=40)
 
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color=COLOR_BG, corner_radius=0)
-        self.scroll_frame.grid(row=1, column=0, sticky="nsew")
-        
-        self.scroll_frame.grid_columnconfigure(0, weight=1)
-        self.scroll_frame.grid_columnconfigure(1, weight=1)
+        self.cam_lbl = ctk.CTkLabel(
+            footer, text="CAMARA ...", font=(FUENTE, 13, "bold"), text_color=C_DIM
+        )
+        self.cam_lbl.pack(side="right", padx=40)
 
-        self.load_games()
+    def _move(self, delta):
+        self._select((self.selected + delta) % len(self.cards))
 
-        self.footer = ctk.CTkFrame(self, fg_color="#0F0F15", height=50, corner_radius=0)
-        self.footer.grid(row=2, column=0, sticky="ew")
-        
-        ctk.CTkLabel(self.footer, text="Desarrollado por Grupo Estudiantil de IA", text_color="#555566", font=("Arial", 11)).pack(side="left", padx=20, pady=15)
-        ctk.CTkButton(self.footer, text="SALIR", width=80, height=25, fg_color="#330000", hover_color="#550000", command=self.destroy).pack(side="right", padx=20)
+    def _select(self, index):
+        if index != self.selected:
+            self.selected = index
+            self._refresh_selection()
 
-        self.pulse_val = 0
-        self.animate_header()
+    def _refresh_selection(self):
+        for i, card in enumerate(self.cards):
+            card.set_selected(i == self.selected)
 
-    def load_games(self):
-        games = [
-            {
-                "name": "🎤 FLAPPY SCREAM",
-                "desc": "Usa el volumen de tu voz para controlar la nave. ¡Grita para volar!",
-                "script": "game_flappy.py",
-                "color": "#E53935", 
-                "hover": "#FF5252"
-            },
-            {
-                "name": "🐍 NEURAL SNAKE",
-                "desc": "El clásico Snake con superpoderes, combos y una IA rival.",
-                "script": "game_snake.py",
-                "color": "#43A047",
-                "hover": "#66BB6A"
-            },
-            {
-                "name": "😠 FACIAL KOMBAT",
-                "desc": "Derrota enemigos imitando las expresiones faciales en pantalla.",
-                "script": "game_kombat.py",
-                "color": "#FB8C00",
-                "hover": "#FFA726"
-            },
-            {
-                "name": "🎹 HUMAN PIANO",
-                "desc": "Crea música moviendo tus manos frente a la cámara con visión artificial.",
-                "script": "game_piano.py",
-                "color": "#8E24AA",
-                "hover": "#AB47BC"
-            }
-        ]
+    def _on_escape(self):
+        if self.is_fullscreen:
+            self._toggle_fullscreen()
+        else:
+            self.destroy()
 
-        for i, game in enumerate(games):
-            card = GameCard(self.scroll_frame, game, self.launch_game)
-            card.grid(row=i//2, column=i%2, padx=15, pady=15, sticky="ew")
+    def _toggle_fullscreen(self):
+        self.is_fullscreen = not self.is_fullscreen
+        self.attributes("-fullscreen", self.is_fullscreen)
 
-    def animate_header(self):
-        self.pulse_val += 0.15
-        colors = ["#00F0FF", "#50F5FF", "#AAFAFF", "#FFFFFF", "#AAFAFF", "#50F5FF"]
-        idx = int(self.pulse_val) % len(colors)
-        
+    def _launch(self, index):
+        if self.launching:
+            return
+        game = GAMES[index]
+        path = os.path.join(BASE_DIR, game["script"])
+        if not os.path.exists(path):
+            return
+
+        self.launching = True
+        self.withdraw()
+
+        def run():
+            env = dict(os.environ)
+            env["GEIIA_FROM_MENU"] = "1"  # el juego sabe que no debe relanzar el menu
+            try:
+                subprocess.run([sys.executable, path], cwd=BASE_DIR, env=env)
+            except Exception as exc:  # noqa: BLE001 - el menu nunca debe morir
+                print(f"Error ejecutando {game['script']}: {exc}")
+            self.after(0, self._restore)
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _restore(self):
+        self.launching = False
+        self.deiconify()
+        self.focus_force()
+
+    def _camera_probe(self):
+        ok = check_camera()
+        self.after(0, lambda: self._set_camera_status(ok))
+
+    def _set_camera_status(self, ok):
+        if ok:
+            self.cam_lbl.configure(text="CAMARA LISTA", text_color=C_VERDE)
+        else:
+            self.cam_lbl.configure(text="SIN CAMARA - 3 JUEGOS LA NECESITAN", text_color=C_ROJO)
+
+    def _animate(self):
+        """Parpadeo del indicador de la tarjeta activa. Un solo elemento se
+        mueve; el resto queda quieto."""
+        self._blink = (self._blink + 1) % 10
+        card = self.cards[self.selected]
+        if card.available:
+            visible = self._blink < 6
+            card.play_lbl.configure(text="ENTER >" if visible else "ENTER")
         try:
-            self.title_label.configure(text_color=colors[idx])
-            self.after(100, self.animate_header)
-        except:
+            self.after(90, self._animate)
+        except Exception:
             pass
 
-    def launch_game(self, script_name):
-        full_path = os.path.join(BASE_DIR, script_name)
-        if os.path.exists(full_path):
-            print(f"Iniciando {script_name}...")
-            subprocess.Popen([sys.executable, full_path])
-        else:
-            print(f"Error: {script_name} no encontrado")
 
 if __name__ == "__main__":
-    app = ArcadeMenu()
-    app.mainloop()
+    ArcadeMenu().mainloop()
